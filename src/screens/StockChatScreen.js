@@ -262,19 +262,37 @@ const phStyles = StyleSheet.create({
 // ── Typing dots animation ─────────────────────────────────────────────────────
 
 function TypingDots() {
-  const anim = useRef(new Animated.Value(0.3)).current;
+  const anims = [
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.3)).current,
+  ];
   useEffect(() => {
-    Animated.loop(
+    const make = (anim, delay) => Animated.loop(
       Animated.sequence([
-        Animated.timing(anim, { toValue: 1, duration: 550, useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 0.3, duration: 550, useNativeDriver: true }),
+        Animated.delay(delay),
+        Animated.timing(anim, { toValue: 1,   duration: 400, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0.3, duration: 400, useNativeDriver: true }),
+        Animated.delay(400),
       ])
-    ).start();
+    );
+    anims.forEach((a, i) => make(a, i * 160).start());
+    return () => anims.forEach(a => a.stopAnimation());
   }, []);
   return (
-    <Animated.Text style={{ opacity: anim, color: '#94a3b8', fontSize: 18, letterSpacing: 5 }}>
-      ● ● ●
-    </Animated.Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12 }}>
+      {anims.map((anim, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            width: 6, height: 6, borderRadius: 3,
+            backgroundColor: '#9aa0aa',
+            marginHorizontal: 2,
+            opacity: anim,
+          }}
+        />
+      ))}
+    </View>
   );
 }
 
