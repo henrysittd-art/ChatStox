@@ -17,6 +17,8 @@ app.use(cors({
     'http://localhost:19000',
     'http://127.0.0.1:8081',
     'http://127.0.0.1:19006',
+    'https://chatstox.com',
+    'https://www.chatstox.com',
   ],
   methods: ['GET', 'POST'],
 }));
