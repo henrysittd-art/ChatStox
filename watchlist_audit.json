@@ -1,0 +1,454 @@
+{
+  "date": "2026-05-07T16:27:22.177Z",
+  "total": 464,
+  "valid": 400,
+  "invalid": 64,
+  "errors": 0,
+  "accuracy": "86.2%",
+  "toRemove": [
+    "CFLT",
+    "PSTG",
+    "SEMR",
+    "SQ",
+    "INFN",
+    "SAGE",
+    "ITCI",
+    "HZNP",
+    "SPPI",
+    "EXAS",
+    "VERV",
+    "MRTX",
+    "MRUS",
+    "PXD",
+    "MRO",
+    "HES",
+    "ALTM",
+    "MMP",
+    "ESTE",
+    "CIVI",
+    "CPE",
+    "VTLE",
+    "CDEV",
+    "ARCH",
+    "CEIX",
+    "MGIC",
+    "GHLD",
+    "COOP",
+    "JWN",
+    "GPS",
+    "FL",
+    "BGFV",
+    "PET",
+    "GOEV",
+    "RIDE",
+    "FFIE",
+    "MULN",
+    "SOLO",
+    "AYRO",
+    "ZEV",
+    "HYZN",
+    "IDEX",
+    "NKLA",
+    "PTRA",
+    "LTHM",
+    "MAPS",
+    "HEXO",
+    "CURLF",
+    "TCNNF",
+    "GABY",
+    "PARA",
+    "MTTR",
+    "RDFN",
+    "DBRX",
+    "ILUS",
+    "NAKD",
+    "EXPR",
+    "GOGL",
+    "FREE",
+    "MARK",
+    "XELA",
+    "KERN",
+    "CVLY"
+  ],
+  "invalidList": [
+    {
+      "ticker": "CFLT",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "PSTG",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "SEMR",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "SQ",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "INFN",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "SAGE",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "ITCI",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "HZNP",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "SPPI",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "EXAS",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "VERV",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "MRTX",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "MRUS",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "PXD",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "MRO",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "HES",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "ALTM",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "MMP",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "ESTE",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "CIVI",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "CPE",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "VTLE",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "CDEV",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "ARCH",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "CEIX",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "MGIC",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "GHLD",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "COOP",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "JWN",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "GPS",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "FL",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "BGFV",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "PET",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "GOEV",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "RIDE",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "FFIE",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "MULN",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "SOLO",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "AYRO",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "ZEV",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "HYZN",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "IDEX",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "NKLA",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "PTRA",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "LTHM",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "MAPS",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "HEXO",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "CURLF",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "TCNNF",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "GABY",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "PARA",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "MTTR",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "RDFN",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "DBRX",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "ILUS",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "NAKD",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "EXPR",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "EGLE",
+      "reason": "price=$0"
+    },
+    {
+      "ticker": "GOGL",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "FREE",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "MARK",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "XELA",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "KERN",
+      "reason": "not returned by Polygon"
+    },
+    {
+      "ticker": "CVLY",
+      "reason": "not returned by Polygon"
+    }
+  ],
+  "errorList": [],
+  "validSample": [
+    {
+      "ticker": "AAPL",
+      "price": 289.54,
+      "pct": 0.6712809989217791,
+      "vol": 18827446
+    },
+    {
+      "ticker": "MSFT",
+      "price": 423.765,
+      "pct": 2.3528843366508867,
+      "vol": 14788652
+    },
+    {
+      "ticker": "NVDA",
+      "price": 211.8,
+      "pct": 1.8236058316893577,
+      "vol": 90428680
+    },
+    {
+      "ticker": "AMD",
+      "price": 405.11,
+      "pct": -3.8183155746458093,
+      "vol": 23039290
+    },
+    {
+      "ticker": "GOOGL",
+      "price": 394.13,
+      "pct": -1.0209777911767777,
+      "vol": 9323444
+    },
+    {
+      "ticker": "META",
+      "price": 619.17,
+      "pct": 1.027933690118776,
+      "vol": 6121890
+    },
+    {
+      "ticker": "AMZN",
+      "price": 272.98,
+      "pct": -0.7418815229644697,
+      "vol": 15097719
+    },
+    {
+      "ticker": "NFLX",
+      "price": 88.77,
+      "pct": 0.5494505494505488,
+      "vol": 11320264
+    },
+    {
+      "ticker": "INTC",
+      "price": 111.05,
+      "pct": -1.7520573400584054,
+      "vol": 65689345
+    },
+    {
+      "ticker": "QCOM",
+      "price": 209.67,
+      "pct": 9.059043464714128,
+      "vol": 27981784
+    },
+    {
+      "ticker": "TXN",
+      "price": 283.32,
+      "pct": -2.167979546710882,
+      "vol": 2351087
+    },
+    {
+      "ticker": "AVGO",
+      "price": 418.01,
+      "pct": -1.749952989845805,
+      "vol": 7437466
+    },
+    {
+      "ticker": "MU",
+      "price": 643.92,
+      "pct": -3.451146881891417,
+      "vol": 25975397
+    },
+    {
+      "ticker": "AMAT",
+      "price": 408.325,
+      "pct": -4.759460594465955,
+      "vol": 2026472
+    },
+    {
+      "ticker": "LRCX",
+      "price": 284.62,
+      "pct": -4.275330618837716,
+      "vol": 2983229
+    },
+    {
+      "ticker": "KLAC",
+      "price": 1761.15,
+      "pct": -3.0171393334764796,
+      "vol": 367109
+    },
+    {
+      "ticker": "MRVL",
+      "price": 162.8,
+      "pct": -5.425501016555331,
+      "vol": 8658369
+    },
+    {
+      "ticker": "ARM",
+      "price": 213.615,
+      "pct": -9.928360724820902,
+      "vol": 15362797
+    },
+    {
+      "ticker": "SMCI",
+      "price": 34.08,
+      "pct": -1.6442585112521553,
+      "vol": 32866111
+    },
+    {
+      "ticker": "ADBE",
+      "price": 257.815,
+      "pct": 3.0699124595275356,
+      "vol": 2143912
+    }
+  ]
+}
