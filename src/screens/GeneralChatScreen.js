@@ -13,8 +13,9 @@ import { useTabs, generateTabName } from '../context/TabContext';
 import { extractTicker } from '../utils/tickerExtractor';
 import { detectHistoricalQuery } from '../utils/detectHistoricalQuery';
 import { nowISO, formatMessageTime } from '../utils/formatTime';
+import { BACKEND_URL } from '../config/api';
 
-const BACKEND = 'http://localhost:3001';
+const BACKEND = BACKEND_URL;
 
 const LEGACY_KEY = 'chat_general_market';
 

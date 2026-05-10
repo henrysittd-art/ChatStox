@@ -7,8 +7,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { LogoIcon } from '../components/ChatstoxLogo';
+import { BACKEND_URL } from '../config/api';
 
-const API_BASE = 'http://localhost:3001';
+const API_BASE = BACKEND_URL;
 
 // ── Google color G icon ───────────────────────────────────────────────────────
 function GoogleIcon({ size = 20 }) {

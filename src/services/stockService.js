@@ -1,6 +1,5 @@
-// All Polygon calls go through the local Express proxy (fixes browser CORS).
-// The proxy lives at localhost:3001 and holds the API key server-side.
-const BACKEND = 'http://localhost:3001';
+import { BACKEND_URL } from '../config/api';
+const BACKEND = BACKEND_URL;
 
 function mapSnapshot(snap) {
   const day       = snap.day        || {};

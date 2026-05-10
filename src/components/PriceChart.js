@@ -4,7 +4,8 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, BarChart, Bar,
 } from 'recharts';
-const BACKEND = 'http://localhost:3001';
+import { BACKEND_URL } from '../config/api';
+const BACKEND = BACKEND_URL;
 
 const PERIODS = ['1D', '5D', '1M', '6M', 'YTD', '1Y'];
 

@@ -12,6 +12,8 @@ export const OPENAI_BASE_URL = 'https://api.openai.com/v1/chat/completions';
 
 export const POLYGON_API_KEY = '${polygonKey}';
 export const POLYGON_BASE    = 'https://api.polygon.io';
+
+export const BACKEND_URL = 'https://chatstox-production.up.railway.app';
 `;
 
 fs.writeFileSync('src/config/api.js', content);

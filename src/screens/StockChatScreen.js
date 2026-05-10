@@ -17,8 +17,9 @@ import { calcRisk } from '../utils/riskLevel';
 import { LogoIcon } from '../components/ChatstoxLogo';
 import { detectHistoricalQuery } from '../utils/detectHistoricalQuery';
 import { nowISO, formatMessageTime } from '../utils/formatTime';
+import { BACKEND_URL } from '../config/api';
 
-const BACKEND = 'http://localhost:3001';
+const BACKEND = BACKEND_URL;
 
 const { width } = Dimensions.get('window');
 
