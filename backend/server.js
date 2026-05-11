@@ -21,6 +21,7 @@ app.use(cors({
     'https://www.chatstox.com',
   ],
   methods: ['GET', 'POST'],
+  credentials: true,
 }));
 app.use(express.json());
 
