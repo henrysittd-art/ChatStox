@@ -1508,6 +1508,17 @@ export default function HomeScreen({ navigation }) {
   const visibleData = listData.slice(0, visibleCount);
   const hasMore = visibleCount < listData.length;
 
+  // ── Pipeline diagnostics (always-on so issues are visible in prod logs) ──────
+  if (!loading) {
+    console.log(
+      `[HomeScreen] tab=${activeTab} sector=${selectedSector} ` +
+      `gainers=${gainers.length} losers=${losers.length} ` +
+      `activeList=${activeList.length} rawList=${rawList.length} ` +
+      `filtered=${filteredList.length} listData=${listData.length} ` +
+      `visibleCount=${visibleCount} visibleData=${visibleData.length}`
+    );
+  }
+
   const statusLabel      = et.statusLabel.toUpperCase();
   const statusBadgeColor = et.dotColor;
 

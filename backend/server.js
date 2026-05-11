@@ -168,14 +168,18 @@ app.get('/api/chart/:ticker', async (req, res) => {
 });
 
 // ── GET /api/batch?tickers=AAPL,MSFT,... ─────────────────────────────────────
+// Express auto-decodes req.query.tickers, so commas are literal here.
+// Pass them directly to Polygon — no re-encoding needed (and re-encoding
+// would produce %2C which Polygon may not split correctly).
 app.get('/api/batch', async (req, res) => {
   const { tickers } = req.query;
   if (!tickers) return res.status(400).json({ error: 'tickers query param required' });
   try {
+    const tickerList = tickers.split(',').map(t => t.trim()).filter(Boolean);
     const data = await polyFetch(
-      `/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${encodeURIComponent(tickers)}`
+      `/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${tickerList.join(',')}`
     );
-    console.log(`[batch] ${(data.tickers || []).length} of ${tickers.split(',').length} tickers returned`);
+    console.log(`[batch] ${(data.tickers || []).length} of ${tickerList.length} tickers returned`);
     res.json(data);
   } catch (e) {
     console.error('[batch] error:', e.message);

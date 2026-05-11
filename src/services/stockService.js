@@ -449,12 +449,29 @@ let _masterFlight = null;
 const MASTER_CACHE_TTL = 60_000;
 
 // Fetch one batch of tickers (≤100) via the local proxy's /api/batch endpoint.
+// Commas are NOT percent-encoded here — passing them as literals is correct for
+// query strings (RFC 3986) and avoids a double-encode bug where the backend would
+// re-encode them to %2C before forwarding to Polygon, causing the batch to return 0 results.
 async function fetchBatchSnapshots(tickers) {
-  const joined = encodeURIComponent(tickers.join(','));
-  const url = `${BACKEND}/api/batch?tickers=${joined}`;
-  const res = await fetch(url);
-  const json = await res.json();
-  return json.tickers || [];
+  const url = `${BACKEND}/api/batch?tickers=${tickers.join(',')}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error(`[fetchBatchSnapshots] HTTP ${res.status} for batch of ${tickers.length} tickers`);
+      return [];
+    }
+    const json = await res.json();
+    const result = json.tickers || [];
+    if (result.length === 0) {
+      console.warn(`[fetchBatchSnapshots] 0 tickers returned for batch of ${tickers.length} (sample: ${tickers.slice(0, 4).join(',')})`);
+    } else {
+      console.log(`[fetchBatchSnapshots] ${result.length}/${tickers.length} tickers returned`);
+    }
+    return result;
+  } catch (e) {
+    console.error(`[fetchBatchSnapshots] fetch error for batch of ${tickers.length}:`, e.message);
+    return [];
+  }
 }
 
 // Fetch PENNY_WATCHLIST batch snapshot (separate cache so it doesn't compete with master).
