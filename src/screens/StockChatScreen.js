@@ -1115,6 +1115,18 @@ export default function StockChatScreen({ route, navigation }) {
         }
       }
 
+      // Hard stop: if price is still 0 after retries, never call the AI
+      if (!hasRealPrice(stockForAI)) {
+        const noDataMsg = {
+          role: 'assistant',
+          content: `No hay datos de mercado disponibles para ${ticker}. Es posible que esta acción esté inactiva o no cotice actualmente.`,
+          time: nowISO(),
+        };
+        setMessages([buildDisclaimerMessage(), noDataMsg]);
+        await AsyncStorage.setItem(`chat_${ticker}`, JSON.stringify([buildDisclaimerMessage(), noDataMsg]));
+        return;
+      }
+
       setThinking(true);
 
       const autoMsg = {

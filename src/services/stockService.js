@@ -602,7 +602,7 @@ function isValidStock(s) {
   const ticker = s.ticker || '';
 
   if (BLACKLISTED_TICKERS.has(ticker)) return false; // known bad data
-  if (!price || price <= 0)       return false;   // missing or zero price
+  if (!price || price < 0.0001)   return false;   // missing, zero, or sub-penny ghost
   if (!vol   || vol < 1000)       return false;   // no real volume
   if (pct === 0)                  return false;   // completely flat
   if (pct > 2000 || pct < -95)    return false;   // extreme outlier
