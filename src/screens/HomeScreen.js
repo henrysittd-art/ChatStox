@@ -292,7 +292,7 @@ const PHASE_LABEL = {
 
 // ── BriefCard ──────────────────────────────────────────────────────────────────
 
-function BriefCard({ briefLoading, aiBrief, briefSectors, briefIndices, briefVix, topGainer, topLoser, et, lastUpdated }) {
+function BriefCard({ briefLoading, aiBrief, briefSectors, briefIndices, briefVix, et, lastUpdated }) {
   const [expanded, setExpanded] = useState(false);
   const dataFadeAnim  = useRef(new Animated.Value(1)).current;
   const timePulseAnim = useRef(new Animated.Value(0)).current;
@@ -413,42 +413,6 @@ function BriefCard({ briefLoading, aiBrief, briefSectors, briefIndices, briefVix
                 {renderIdxCell(iwm, 'Russell')}
               </View>
             </View>
-
-            {/* Top gainer + loser */}
-            {(topGainer || topLoser) && (
-              <>
-                {/* Section label: movers — left/right aligned */}
-                <View style={bcStyles.moverLabelRow}>
-                  {topGainer
-                    ? <Text style={bcStyles.sectionLabel}>🏆 TOP GAINER</Text>
-                    : <View />}
-                  {topLoser
-                    ? (
-                      <Text style={bcStyles.sectionLabel}>
-                        <Text style={{ color: '#dc2626' }}>▼ </Text>TOP LOSER
-                      </Text>
-                    )
-                    : <View />}
-                </View>
-                <View style={bcStyles.moverRow}>
-                  {topGainer && (
-                    <View style={bcStyles.moverItem}>
-                      <Text style={bcStyles.upArrow}>▲</Text>
-                      <Text style={bcStyles.moverTicker}>{topGainer.ticker}</Text>
-                      <Text style={bcStyles.upPct}>+{Number(topGainer.changePercent).toFixed(2)}%</Text>
-                    </View>
-                  )}
-                  {topGainer && topLoser && <View style={bcStyles.moverDivider} />}
-                  {topLoser && (
-                    <View style={bcStyles.moverItem}>
-                      <Text style={bcStyles.dnArrow}>▼</Text>
-                      <Text style={bcStyles.moverTicker}>{topLoser.ticker}</Text>
-                      <Text style={bcStyles.dnPct}>{Number(topLoser.changePercent).toFixed(2)}%</Text>
-                    </View>
-                  )}
-                </View>
-              </>
-            )}
 
             {/* AI insight */}
             {aiBrief ? (
@@ -1660,8 +1624,7 @@ export default function HomeScreen({ navigation }) {
               briefSectors={briefSectors}
               briefIndices={briefIndices}
               briefVix={briefVix}
-              topGainer={gainers.find(s => { const p = Number(s.changePercent); return p > 0 && p <= 500; }) || null}
-              topLoser={losers.find(s => { const p = Number(s.changePercent); return p < 0 && p >= -80; }) || null}
+
               et={et}
               lastUpdated={briefLastUpdated}
             />
@@ -2049,7 +2012,6 @@ const bcStyles = StyleSheet.create({
   vixInterpret: { fontSize: 10, fontWeight: '700', flex: 1 },
   vixChg:       { fontSize: 10, fontWeight: '700' },
   sectionLabel: { fontSize: 10, color: '#9aa0aa', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 5 },
-  moverLabelRow:{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
   idxGrid:      { borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9', overflow: 'hidden', marginBottom: 8 },
   idxRow:       { flexDirection: 'row' },
   idxRowTop:    { borderTopWidth: 1, borderTopColor: '#f1f5f9' },
@@ -2059,14 +2021,6 @@ const bcStyles = StyleSheet.create({
   idxPriceRow:  { flexDirection: 'row', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
   idxPrice:     { fontSize: 13, fontWeight: '800', color: '#0f172a' },
   idxPct:       { fontSize: 10, fontWeight: '700' },
-  moverRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fafafa', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginBottom: 8 },
-  moverItem:    { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  moverDivider: { width: 1, height: 14, backgroundColor: '#e2e8f0', marginHorizontal: 8 },
-  upArrow:      { fontSize: 9, color: '#16a34a', fontWeight: '900' },
-  dnArrow:      { fontSize: 9, color: '#dc2626', fontWeight: '900' },
-  moverTicker:  { fontSize: 11, fontWeight: '800', color: '#0a1628' },
-  upPct:        { fontSize: 11, fontWeight: '700', color: '#16a34a' },
-  dnPct:        { fontSize: 11, fontWeight: '700', color: '#dc2626' },
   insight:      { fontSize: 12, color: '#475569', lineHeight: 18, fontStyle: 'italic', marginTop: 2 },
   readMore:     { fontSize: 11, color: '#0066cc', fontWeight: '500', marginTop: 3 },
   loadingRow:   { paddingVertical: 8 },
