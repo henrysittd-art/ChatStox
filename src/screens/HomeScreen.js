@@ -124,43 +124,100 @@ function truncateName(name, ticker) {
   return out.join(' ') || ticker;
 }
 
-function getETTime() {
+// ── US market holidays & early-close dates (NYSE observed) ────────────────────
+const NYSE_HOLIDAYS = new Set([
+  '2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25',
+  '2026-07-03','2026-09-07','2026-11-26','2026-12-25',
+  '2027-01-01','2027-01-18','2027-02-15','2027-03-26','2027-05-31',
+  '2027-07-05','2027-09-06','2027-11-25','2027-12-24',
+]);
+const NYSE_EARLY_CLOSE = new Set([
+  '2026-11-27','2026-12-24',
+  '2027-11-26','2027-12-24',
+]);
+
+function etDateStr(etDate) {
+  const y = etDate.getFullYear();
+  const m = String(etDate.getMonth() + 1).padStart(2, '0');
+  const d = String(etDate.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function nextTradingDay(etDate) {
+  const d = new Date(etDate);
+  d.setDate(d.getDate() + 1);
+  while (true) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !NYSE_HOLIDAYS.has(etDateStr(d))) break;
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
+}
+
+function getMarketStatus() {
   const now = new Date();
+
+  // ET clock via Intl
+  const etParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(now);
+  const p = {};
+  etParts.forEach(({ type, value }) => { p[type] = value; });
+  const etDate = new Date(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:00`);
+  const hour   = Number(p.hour);
+  const minute = Number(p.minute);
+  const dow    = etDate.getDay(); // 0=Sun 6=Sat
+  const dateStr = etDateStr(etDate);
+  const timeDecimal = hour + minute / 60;
+
+  const isWeekend  = dow === 0 || dow === 6;
+  const isHoliday  = NYSE_HOLIDAYS.has(dateStr);
+  const isEarlyClose = NYSE_EARLY_CLOSE.has(dateStr);
+  const closeTime  = isEarlyClose ? 13.0 : 16.0;
+
+  // Formatted ET time string for display
   const time = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true,
   }).format(now);
   const zone = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York', timeZoneName: 'short',
-  }).formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? 'ET';
-  const utcDay = now.getUTCDay();
-  const isDST  = (() => { const mo = now.getUTCMonth() + 1; return mo > 3 && mo < 11; })();
-  const etHour = (now.getUTCHours() - (isDST ? 4 : 5) + 24) % 24;
-  const etTime = etHour + now.getUTCMinutes() / 60;
+  }).formatToParts(now).find(q => q.type === 'timeZoneName')?.value ?? 'ET';
 
-  let statusLabel, dotColor, isOpen, isPreMarket, isAfterHours;
-
-  if (utcDay === 6) {
-    statusLabel = 'Market Closed · Opens Monday';
-    dotColor = '#9aa0aa'; isOpen = false; isPreMarket = false; isAfterHours = false;
-  } else if (utcDay === 0) {
-    statusLabel = 'Market Closed · Opens Tomorrow';
-    dotColor = '#9aa0aa'; isOpen = false; isPreMarket = false; isAfterHours = false;
-  } else if (etTime >= 4 && etTime < 9.5) {
-    statusLabel = 'Pre-Market';
-    dotColor = '#f5a623'; isOpen = false; isPreMarket = true; isAfterHours = false;
-  } else if (etTime >= 9.5 && etTime < 16) {
-    statusLabel = 'Market Open';
-    dotColor = '#00c853'; isOpen = true; isPreMarket = false; isAfterHours = false;
-  } else if (etTime >= 16 && etTime < 20) {
-    statusLabel = 'After Hours';
-    dotColor = '#f5a623'; isOpen = false; isPreMarket = false; isAfterHours = true;
-  } else {
-    statusLabel = 'Market Closed · Opens Tomorrow';
-    dotColor = '#9aa0aa'; isOpen = false; isPreMarket = false; isAfterHours = false;
+  // Closed (weekend or holiday)
+  if (isWeekend || isHoliday) {
+    const next = nextTradingDay(etDate);
+    const nextName = next.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' });
+    let label;
+    if (dow === 6) label = 'Market Closed · Opens Monday';
+    else if (dow === 0) label = 'Market Closed · Opens Tomorrow';
+    else label = `Market Holiday · Opens ${nextName}`;
+    return { time, zone, statusLabel: label, dotColor: '#9aa0aa',
+             isOpen: false, isPreMarket: false, isAfterHours: false, session: 'closed' };
   }
 
-  return { time, zone, statusLabel, dotColor, isOpen, isPreMarket, isAfterHours };
+  // Weekday sessions
+  if (timeDecimal >= 4.0 && timeDecimal < 9.5) {
+    return { time, zone, statusLabel: 'Pre-Market', dotColor: '#f5a623',
+             isOpen: false, isPreMarket: true, isAfterHours: false, session: 'premarket' };
+  }
+  if (timeDecimal >= 9.5 && timeDecimal < closeTime) {
+    const label = isEarlyClose ? 'Market Open · Early Close 1PM' : 'Market Open';
+    return { time, zone, statusLabel: label, dotColor: '#00c853',
+             isOpen: true, isPreMarket: false, isAfterHours: false, session: 'open' };
+  }
+  if (timeDecimal >= closeTime && timeDecimal < 20.0) {
+    return { time, zone, statusLabel: 'After Hours', dotColor: '#f5a623',
+             isOpen: false, isPreMarket: false, isAfterHours: true, session: 'afterhours' };
+  }
+  // After 8 PM ET — closed until tomorrow
+  return { time, zone, statusLabel: 'Market Closed · Opens Tomorrow', dotColor: '#9aa0aa',
+           isOpen: false, isPreMarket: false, isAfterHours: false, session: 'closed' };
 }
+
+// Backwards-compat alias so all call sites work unchanged
+const getETTime = getMarketStatus;
 
 // ── IndexStrip ─────────────────────────────────────────────────────────────────
 
@@ -187,20 +244,17 @@ function IndexStrip({ indices }) {
 // ── Brief helpers & constants ──────────────────────────────────────────────────
 
 function getTimePhase() {
-  const now = new Date();
-  const utcDay = now.getUTCDay();
-  if (utcDay === 0 || utcDay === 6) return 'closed';
+  const { session } = getMarketStatus();
+  if (session !== 'open') return session; // 'premarket' | 'afterhours' | 'closed'
+  // Granular sub-phases during open session (used by AI brief prompt)
   const etStr = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false,
-  }).format(now);
+  }).format(new Date());
   const [h, m] = etStr.split(':').map(Number);
   const mins = h * 60 + m;
-  if (mins >= 240 && mins < 570)  return 'premarket';
-  if (mins >= 570 && mins < 630)  return 'open';
-  if (mins >= 630 && mins < 840)  return 'midday';
-  if (mins >= 840 && mins < 960)  return 'powerhour';
-  if (mins >= 960)                return 'afterhours';
-  return 'overnight';
+  if (mins < 630) return 'open';        // 9:30–10:30 AM
+  if (mins < 840) return 'midday';      // 10:30 AM–2:00 PM
+  return 'powerhour';                   // 2:00 PM–close
 }
 
 function computeMarketTone(indices) {
