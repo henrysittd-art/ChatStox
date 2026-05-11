@@ -6,7 +6,7 @@ const cors    = require('cors');
 const app  = express();
 const PORT = 3001;
 
-const POLYGON_KEY  = process.env.POLYGON_API_KEY || '8yyDhSs9uoAX5mIWeiUarpfNmeFCfmvc';
+const POLYGON_KEY  = process.env.POLYGON_API_KEY || 'YsPT9O6G9E5p52c3QRj7ddHTZjgBSFUM';
 const POLYGON_BASE = 'https://api.polygon.io';
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
