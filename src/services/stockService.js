@@ -602,12 +602,16 @@ function isValidStock(s) {
   const ticker = s.ticker || '';
 
   if (BLACKLISTED_TICKERS.has(ticker)) return false; // known bad data
-  if (!price || price < 0.0001)   return false;   // missing, zero, or sub-penny ghost
-  if (!vol   || vol < 1000)       return false;   // no real volume
+  if (!price || price < 0.01)     return false;   // below tradeable minimum ($0.01)
+  if (!vol   || vol < 10_000)     return false;   // below meaningful volume floor
   if (pct === 0)                  return false;   // completely flat
   if (pct > 2000 || pct < -95)    return false;   // extreme outlier
   if (ticker.endsWith('Q'))       return false;   // bankruptcy symbol
-  if (ticker.length > 5)          return false;   // warrant / rights suffix
+  if (ticker.length > 5)          return false;   // warrant / rights / extended suffix
+  // Foreign OTC: 5-letter tickers ending F (e.g. SWYDF) or Y (e.g. BYDDY)
+  // unavailable on most retail brokers
+  if (ticker.length === 5 && ticker.endsWith('F')) return false;
+  if (ticker.length === 5 && ticker.endsWith('Y')) return false;
 
   // Only filter obvious data errors: >900% move on near-zero volume
   if (pct > 900 && vol < 10_000)  return false;
@@ -652,6 +656,7 @@ export async function fetchTopLosers() {
       fetchMasterWatchlist(),
     ]);
     const stocks = mergeAndFilter([losersJson.tickers || [], masterRaws])
+      .filter(s => Number(s.volume) >= 50_000 && Number(s.price) >= 0.01)
       .sort((a, b) => Number(a.changePercent) - Number(b.changePercent));
     console.log(`[fetchTopLosers] ${stocks.length} stocks (losers endpoint: ${(losersJson.tickers || []).length}, master: ${masterRaws.length})`);
     return enrichWithNames(stocks);
