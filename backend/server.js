@@ -4,7 +4,7 @@ const express = require('express');
 const cors    = require('cors');
 
 const app  = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 const POLYGON_KEY  = process.env.POLYGON_API_KEY || 'YsPT9O6G9E5p52c3QRj7ddHTZjgBSFUM';
 const POLYGON_BASE = 'https://api.polygon.io';
@@ -366,6 +366,5 @@ app.get('/health', (req, res) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\nCHATSTOX backend running on http://localhost:${PORT}`);
-  console.log(`Polygon proxy ready — CORS open for localhost:8081 / 19006\n`);
+  console.log(`CHATSTOX backend running on port ${PORT}`);
 });
