@@ -606,12 +606,15 @@ function isValidStock(s) {
   if (!vol   || vol < 10_000)     return false;   // below meaningful volume floor
   if (pct === 0)                  return false;   // completely flat
   if (pct > 2000 || pct < -95)    return false;   // extreme outlier
+  // Sub-$0.10 stocks with low volume are blocked by most retail brokers
+  if (price < 0.10 && vol < 500_000) return false;
   if (ticker.endsWith('Q'))       return false;   // bankruptcy symbol
-  if (ticker.length > 5)          return false;   // warrant / rights / extended suffix
-  // Foreign OTC: 5-letter tickers ending F (e.g. SWYDF) or Y (e.g. BYDDY)
-  // unavailable on most retail brokers
-  if (ticker.length === 5 && ticker.endsWith('F')) return false;
-  if (ticker.length === 5 && ticker.endsWith('Y')) return false;
+  if (ticker.length > 5)          return false;   // 6+ char = OTC/extended suffix
+  // 5-letter OTC suffix conventions — blocked by most US retail brokers
+  if (ticker.length === 5 && ticker.endsWith('F')) return false; // foreign OTC (e.g. GTBIF)
+  if (ticker.length === 5 && ticker.endsWith('Y')) return false; // foreign ADR OTC (e.g. BYDDY)
+  if (ticker.length === 5 && ticker.endsWith('W')) return false; // warrants (e.g. ACACW)
+  if (ticker.length === 5 && ticker.endsWith('R')) return false; // rights offerings (e.g. GLTAR)
 
   // Only filter obvious data errors: >900% move on near-zero volume
   if (pct > 900 && vol < 10_000)  return false;

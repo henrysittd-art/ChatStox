@@ -458,13 +458,13 @@ function isUntradeable(s) {
   const vol    = Number(s.volume)        || 0;
   const pct    = Number(s.changePercent) || 0;
   if (price > 0 && price < 0.01)         return true; // below $0.01 minimum
+  if (price < 0.10 && vol < 500_000)    return true; // sub-$0.10 with low volume — broker-restricted
   if (vol < 50_000)                      return true; // too illiquid
-  if (ticker.length > 5)                 return true; // warrants/rights/special
-  if (ticker.length >= 5 && ticker.endsWith('W')) return true; // warrants (e.g. ACACW)
-  if (ticker.length >= 5 && ticker.endsWith('R')) return true; // rights (e.g. GLTAR)
-  if (ticker.length === 5 && ticker.endsWith('F')) return true; // foreign OTC (e.g. SWYDF)
+  if (ticker.length > 5)                 return true; // 6+ char = OTC/extended suffix
+  if (ticker.length === 5 && ticker.endsWith('F')) return true; // foreign OTC (e.g. GTBIF)
   if (ticker.length === 5 && ticker.endsWith('Y')) return true; // foreign ADR OTC (e.g. BYDDY)
-  if (price < 0.05 && vol < 200_000)    return true; // OTC illiquid
+  if (ticker.length === 5 && ticker.endsWith('W')) return true; // warrants (e.g. ACACW)
+  if (ticker.length === 5 && ticker.endsWith('R')) return true; // rights offerings (e.g. GLTAR)
   if (pct > 500)                         return true; // bad data
   return false;
 }
