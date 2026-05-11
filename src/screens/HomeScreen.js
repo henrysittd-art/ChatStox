@@ -467,36 +467,18 @@ function isUntradeable(s) {
   return false;
 }
 
-function detectRunners(stocks, prevHighsRef, hasPrevHighs) {
-  return stocks.filter(s => {
-    if (isUntradeable(s)) return false;
-    const pct     = Number(s.changePercent);
-    const vol     = Number(s.volume);
-    const prevVol = Number(s.previousVolume) || 0;
-    const rvol    = prevVol > 0 ? vol / prevVol : 0;
-
-    const strongMomentum  = pct > 20 && vol > 500_000;
-    const unusualVolSpike = pct > 10 && rvol > 3;
-    const extremeMover    = pct > 50;
-    const prevHigh = prevHighsRef.current[s.ticker];
-    const newHOD   = hasPrevHighs.current
-      && prevHigh != null
-      && Number(s.dayHigh) > prevHigh;
-
-    return strongMomentum || unusualVolSpike || newHOD || extremeMover;
-  })
-  .sort((a, b) => {
-    const scoreA = Number(a.changePercent) * Math.log(Math.max(Number(a.volume), 1));
-    const scoreB = Number(b.changePercent) * Math.log(Math.max(Number(b.volume), 1));
-    return scoreB - scoreA;
-  })
-  .slice(0, 20);
+function detectRunners(stocks) {
+  return stocks
+    .filter(s => {
+      if (isUntradeable(s)) return false;
+      return Number(s.changePercent) >= 20 && Number(s.volume) > 500_000;
+    })
+    .sort((a, b) => Number(b.changePercent) - Number(a.changePercent))
+    .slice(0, 15);
 }
 
 function RunnerBar({ stocks, onPress }) {
-  const pulseAnim    = useRef(new Animated.Value(1)).current;
-  const prevHighsRef = useRef({});
-  const hasPrevHighs = useRef(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   const [runners, setRunners] = useState([]);
 
   useEffect(() => {
@@ -512,9 +494,7 @@ function RunnerBar({ stocks, onPress }) {
 
   useEffect(() => {
     if (!stocks.length) return;
-    setRunners(detectRunners(stocks, prevHighsRef, hasPrevHighs));
-    stocks.forEach(s => { prevHighsRef.current[s.ticker] = Number(s.dayHigh); });
-    hasPrevHighs.current = true;
+    setRunners(detectRunners(stocks));
   }, [stocks]);
 
   if (!runners.length) return null;
@@ -654,17 +634,8 @@ const rnStyles = StyleSheet.create({
 
 // ── HeatingUpBar ──────────────────────────────────────────────────────────────
 
-// Mirrors the non-HOD runner criteria (HOD is stateful inside RunnerBar).
-// Used to exclude runner-tier stocks from the Heating Up list.
-function isRunnerCriteria(s) {
-  const pct     = Number(s.changePercent);
-  const vol     = Number(s.volume);
-  const prevVol = Number(s.previousVolume) || 0;
-  const rvol    = prevVol > 0 ? vol / prevVol : 0;
-  return (pct > 20 && vol > 500_000) || (pct > 10 && rvol > 3) || pct > 50;
-}
-
 function detectHeatingUp(stocks) {
+  // Runners are already defined as pct >= 20 && vol > 500K — exclude them here
   return stocks
     .filter(s => {
       if (isUntradeable(s)) return false;
@@ -672,25 +643,17 @@ function detectHeatingUp(stocks) {
       const vol     = Number(s.volume);
       const prevVol = Number(s.previousVolume) || 0;
       const rvol    = prevVol > 0 ? vol / prevVol : 0;
-      const price   = Number(s.price);
-      const vwap    = Number(s.vwap);
-
-      const inPctRange      = pct >= 3 && pct < 20;
-      const rvolInRange     = rvol >= 1.5 && rvol <= 5;
-      const aboveVwap       = vwap > 0 && price > vwap;
-      const volumeBuilding  = prevVol > 0 && vol > prevVol * 0.5;
-      const notRunner       = !isRunnerCriteria(s);
-
-      return inPctRange && rvolInRange && aboveVwap && volumeBuilding && notRunner;
+      // 5%–19.99% change, at least 1.5× average volume, not already a Runner
+      return pct >= 5 && pct < 20 && rvol >= 1.5;
     })
     .sort((a, b) => {
       const prevVolA = Number(a.previousVolume) || 0;
       const prevVolB = Number(b.previousVolume) || 0;
       const rvolA = prevVolA > 0 ? Number(a.volume) / prevVolA : 0;
       const rvolB = prevVolB > 0 ? Number(b.volume) / prevVolB : 0;
-      return (Number(b.changePercent) * rvolB) - (Number(a.changePercent) * rvolA);
+      return rvolB - rvolA; // highest relative volume first
     })
-    .slice(0, 10);
+    .slice(0, 8);
 }
 
 function HeatingUpBar({ stocks, onPress }) {
