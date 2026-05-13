@@ -9,6 +9,9 @@ const PORT = process.env.PORT || 8080;
 const POLYGON_KEY  = process.env.POLYGON_API_KEY || 'YsPT9O6G9E5p52c3QRj7ddHTZjgBSFUM';
 const POLYGON_BASE = 'https://api.polygon.io';
 
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
+if (!OPENAI_KEY) console.error('[server] OPENAI_API_KEY env var is not set — /api/chat will return 500');
+
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
   origin: [
@@ -330,9 +333,7 @@ app.get('/api/historical/:ticker/:date', async (req, res) => {
 // All OpenAI calls are routed here so the API key stays server-side only.
 // Supports both streaming (SSE relay) and non-streaming responses.
 app.post('/api/chat', async (req, res) => {
-  const OPENAI_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_KEY) {
-    console.error('[/api/chat] OPENAI_API_KEY env var not set');
     return res.status(500).json({ error: 'OpenAI API key not configured on server' });
   }
 
