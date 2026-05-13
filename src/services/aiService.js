@@ -1,4 +1,6 @@
-import { OPENAI_MODEL, BACKEND_URL } from '../config/api';
+import { BACKEND_URL } from '../config/api';
+
+const AI_MODEL = 'gemini-1.5-flash'; // model selection happens on the backend; this is for logging only
 
 function formatNumber(n) {
   if (!n && n !== 0) return 'N/A';
@@ -933,7 +935,7 @@ export function aiErrorMessage(question) {
 export async function testAIConnection() {
   try {
     const data = await openaiPost({
-      model: OPENAI_MODEL,
+      model: AI_MODEL,
       max_tokens: 16,
       messages: [{ role: 'user', content: 'Reply with just the word: OK' }],
     });
@@ -969,7 +971,7 @@ export async function callAI({ stock, question, history = [], profile, isGeneral
     { role: 'user', content: question || (isAutoAnalysis ? `Analyze ${stock?.ticker} using the real-time market data provided.` : 'What can you tell me about the market?') },
   ];
 
-  const payload = { model: OPENAI_MODEL, temperature: 0.2, max_tokens: 1800, messages };
+  const payload = { model: AI_MODEL, temperature: 0.2, max_tokens: 1800, messages };
 
   if (onChunk) {
     return await openaiStream(payload, onChunk);
@@ -1042,11 +1044,11 @@ export async function generateMarketBrief({ indices = [], vix = null, gainers = 
 
   let data;
   try {
-    data = await openaiPost({ model: OPENAI_MODEL, temperature: 0.3, max_tokens: 160, messages });
+    data = await openaiPost({ model: AI_MODEL, temperature: 0.3, max_tokens: 160, messages });
   } catch (e) {
     console.error('[CHATSTOX AI] Market brief attempt 1 failed:', e.message);
     await wait(1000);
-    data = await openaiPost({ model: OPENAI_MODEL, temperature: 0.3, max_tokens: 160, messages });
+    data = await openaiPost({ model: AI_MODEL, temperature: 0.3, max_tokens: 160, messages });
   }
   return data.choices?.[0]?.message?.content?.trim() || '';
 }

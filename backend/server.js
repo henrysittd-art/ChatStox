@@ -9,8 +9,10 @@ const PORT = process.env.PORT || 8080;
 const POLYGON_KEY  = process.env.POLYGON_API_KEY || 'YsPT9O6G9E5p52c3QRj7ddHTZjgBSFUM';
 const POLYGON_BASE = 'https://api.polygon.io';
 
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_KEY) console.error('[server] OPENAI_API_KEY env var is not set — /api/chat will return 500');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_KEY) console.error('[server] GEMINI_API_KEY env var is not set — /api/chat will return 500');
+const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
@@ -329,40 +331,41 @@ app.get('/api/historical/:ticker/:date', async (req, res) => {
   }
 });
 
-// ── POST /api/chat — OpenAI proxy (fixes CORS + 401 when calling from browser) ─
-// All OpenAI calls are routed here so the API key stays server-side only.
-// Supports both streaming (SSE relay) and non-streaming responses.
+// ── POST /api/chat — Gemini proxy (keeps API key server-side, fixes CORS) ───────
+// Accepts OpenAI-style message arrays from the frontend.
+// Extracts the system message as systemInstruction, maps the rest to Gemini format.
+// Returns OpenAI-compatible JSON so the frontend needs no changes.
+// Supports streaming SSE: relays Gemini chunks as OpenAI-style delta events.
 app.post('/api/chat', async (req, res) => {
-  if (!OPENAI_KEY) {
-    return res.status(500).json({ error: 'OpenAI API key not configured on server' });
+  if (!genAI) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY not configured on server' });
   }
 
-  const { messages, model = 'gpt-4o-mini', temperature = 0.2, max_tokens = 1800, stream = false } = req.body || {};
+  const { messages, temperature = 0.2, max_tokens = 1800, stream = false } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages array is required' });
   }
 
-  const systemLen = messages.find(m => m.role === 'system')?.content?.length ?? 0;
-  console.log(`[/api/chat] model=${model} messages=${messages.length} system=${systemLen}chars stream=${stream}`);
+  // Split system message (systemInstruction) from the conversation turns
+  const systemMsg  = messages.find(m => m.role === 'system');
+  const nonSystem  = messages.filter(m => m.role !== 'system');
+  const lastMsg    = nonSystem[nonSystem.length - 1];
+  const history    = nonSystem.slice(0, -1).map(m => ({
+    role:  m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
 
-  const payload = { model, temperature, max_tokens, messages };
-  if (stream) payload.stream = true;
+  const systemLen = systemMsg?.content?.length ?? 0;
+  console.log(`[/api/chat] Gemini flash | turns=${nonSystem.length} system=${systemLen}chars stream=${stream}`);
 
   try {
-    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_KEY}`,
-      },
-      body: JSON.stringify(payload),
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      ...(systemMsg ? { systemInstruction: systemMsg.content } : {}),
+      generationConfig: { maxOutputTokens: max_tokens, temperature },
     });
 
-    if (!openaiRes.ok) {
-      const errBody = await openaiRes.text();
-      console.error(`[/api/chat] OpenAI ${openaiRes.status}:`, errBody.slice(0, 200));
-      return res.status(502).json({ error: `OpenAI ${openaiRes.status}: ${errBody.slice(0, 120)}` });
-    }
+    const chat = model.startChat({ history });
 
     if (stream) {
       res.setHeader('Content-Type', 'text/event-stream');
@@ -370,28 +373,29 @@ app.post('/api/chat', async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders();
 
-      const reader = openaiRes.body.getReader();
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(Buffer.from(value));
+        const result = await chat.sendMessageStream(lastMsg.content);
+        for await (const chunk of result.stream) {
+          const token = chunk.text();
+          if (token) {
+            res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: token } }] })}\n\n`);
+          }
         }
+        res.write('data: [DONE]\n\n');
       } catch (e) {
-        console.error('[/api/chat] stream relay error:', e.message);
+        console.error('[/api/chat] Gemini stream error:', e.message);
       } finally {
         res.end();
       }
       return;
     }
 
-    const json = await openaiRes.json();
-    if (json.usage) {
-      console.log(`[/api/chat] ✓ prompt=${json.usage.prompt_tokens} completion=${json.usage.completion_tokens}`);
-    }
-    res.json(json);
+    const result = await chat.sendMessage(lastMsg.content);
+    const text   = result.response.text();
+    console.log(`[/api/chat] ✓ Gemini ${text.length} chars`);
+    res.json({ choices: [{ message: { content: text } }] });
   } catch (e) {
-    console.error('[/api/chat] error:', e.message);
+    console.error('[/api/chat] Gemini error:', e.message);
     res.status(502).json({ error: e.message });
   }
 });
