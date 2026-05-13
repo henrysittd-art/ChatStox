@@ -1,6 +1,6 @@
 import { BACKEND_URL } from '../config/api';
 
-const AI_MODEL = 'gemini-2.5-pro-latest'; // model selection happens on the backend; this is for logging only
+const AI_MODEL = 'gemini-2.5-pro'; // model selection happens on the backend; this is for logging only
 
 function formatNumber(n) {
   if (!n && n !== 0) return 'N/A';
