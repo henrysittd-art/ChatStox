@@ -1,4 +1,4 @@
-import { OPENAI_KEY, OPENAI_MODEL, OPENAI_BASE_URL } from '../config/api';
+import { OPENAI_MODEL, BACKEND_URL } from '../config/api';
 
 function formatNumber(n) {
   if (!n && n !== 0) return 'N/A';
@@ -839,11 +839,11 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function openaiStream(payload, onChunk) {
   const bodyStr = JSON.stringify({ ...payload, stream: true });
   const systemLen = payload.messages?.find(m => m.role === 'system')?.content?.length ?? 0;
-  console.log(`[CHATSTOX AI] → OpenAI stream | model=${payload.model} | system=${systemLen}chars`);
+  console.log(`[CHATSTOX AI] → /api/chat stream | model=${payload.model} | system=${systemLen}chars`);
 
-  const response = await fetch(OPENAI_BASE_URL, {
+  const response = await fetch(`${BACKEND_URL}/api/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+    headers: { 'Content-Type': 'application/json' },
     body: bodyStr,
   });
 
@@ -889,14 +889,11 @@ async function openaiStream(payload, onChunk) {
 async function openaiPost(payload) {
   const bodyStr = JSON.stringify(payload);
   const systemLen = payload.messages?.find(m => m.role === 'system')?.content?.length ?? 0;
-  console.log(`[CHATSTOX AI] → OpenAI request | model=${payload.model} | messages=${payload.messages?.length} | system=${systemLen}chars | body=${bodyStr.length}B`);
+  console.log(`[CHATSTOX AI] → /api/chat | model=${payload.model} | messages=${payload.messages?.length} | system=${systemLen}chars | body=${bodyStr.length}B`);
 
-  const response = await fetch(OPENAI_BASE_URL, {
+  const response = await fetch(`${BACKEND_URL}/api/chat`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_KEY}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: bodyStr,
   });
 

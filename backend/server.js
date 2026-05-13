@@ -326,6 +326,75 @@ app.get('/api/historical/:ticker/:date', async (req, res) => {
   }
 });
 
+// ── POST /api/chat — OpenAI proxy (fixes CORS + 401 when calling from browser) ─
+// All OpenAI calls are routed here so the API key stays server-side only.
+// Supports both streaming (SSE relay) and non-streaming responses.
+app.post('/api/chat', async (req, res) => {
+  const OPENAI_KEY = process.env.OPENAI_API_KEY;
+  if (!OPENAI_KEY) {
+    console.error('[/api/chat] OPENAI_API_KEY env var not set');
+    return res.status(500).json({ error: 'OpenAI API key not configured on server' });
+  }
+
+  const { messages, model = 'gpt-4o-mini', temperature = 0.2, max_tokens = 1800, stream = false } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array is required' });
+  }
+
+  const systemLen = messages.find(m => m.role === 'system')?.content?.length ?? 0;
+  console.log(`[/api/chat] model=${model} messages=${messages.length} system=${systemLen}chars stream=${stream}`);
+
+  const payload = { model, temperature, max_tokens, messages };
+  if (stream) payload.stream = true;
+
+  try {
+    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!openaiRes.ok) {
+      const errBody = await openaiRes.text();
+      console.error(`[/api/chat] OpenAI ${openaiRes.status}:`, errBody.slice(0, 200));
+      return res.status(502).json({ error: `OpenAI ${openaiRes.status}: ${errBody.slice(0, 120)}` });
+    }
+
+    if (stream) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+
+      const reader = openaiRes.body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(Buffer.from(value));
+        }
+      } catch (e) {
+        console.error('[/api/chat] stream relay error:', e.message);
+      } finally {
+        res.end();
+      }
+      return;
+    }
+
+    const json = await openaiRes.json();
+    if (json.usage) {
+      console.log(`[/api/chat] ✓ prompt=${json.usage.prompt_tokens} completion=${json.usage.completion_tokens}`);
+    }
+    res.json(json);
+  } catch (e) {
+    console.error('[/api/chat] error:', e.message);
+    res.status(502).json({ error: e.message });
+  }
+});
+
 // ── Auth OTP endpoints ────────────────────────────────────────────────────────
 // In dev mode, codes are logged to console. In production, use email provider.
 const otpStore = new Map(); // email → { code, expires }
