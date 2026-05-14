@@ -336,6 +336,84 @@ app.get('/api/historical/:ticker/:date', async (req, res) => {
   }
 });
 
+// ── Chat ticker detection & real-time data injection ─────────────────────────
+
+const CHAT_STOP_WORDS = new Set([
+  // English function words / abbrevs (1-5 chars)
+  'A', 'AN', 'THE', 'IS', 'ARE', 'WAS', 'BE', 'DO', 'DID', 'WILL',
+  'AND', 'BUT', 'OR', 'NOR', 'FOR', 'SO', 'YET',
+  'IN', 'ON', 'AT', 'BY', 'TO', 'OF', 'UP', 'AS',
+  'WITH', 'FROM', 'INTO', 'OVER', 'THEN', 'THAN',
+  'THAT', 'THIS', 'THESE', 'THOSE', 'WHAT', 'WHEN', 'WHERE', 'WHICH',
+  'WHO', 'HOW', 'WHY', 'BOTH', 'EACH', 'SUCH', 'SOME', 'MOST',
+  'MORE', 'LESS', 'VERY', 'JUST', 'ONLY', 'ALSO', 'EVEN',
+  'HAVE', 'HAS', 'HAD', 'BEEN', 'WERE', 'DOES', 'DONE',
+  'THEY', 'THEM', 'THEIR', 'THERE', 'YOUR', 'WOULD', 'COULD', 'SHOULD',
+  'GIVE', 'SHOW', 'TELL', 'FIND', 'MAKE', 'TAKE', 'LOOK', 'KNOW',
+  'LIKE', 'WANT', 'NEED', 'CALL', 'HOLD', 'SELL', 'STOP', 'WAIT',
+  'BACK', 'GOOD', 'WELL', 'DOWN', 'SAME', 'LONG', 'HIGH', 'LAST',
+  'NEXT', 'OPEN', 'BEST', 'GIVE', 'RISE', 'FALL', 'BULL', 'BEAR',
+  'CASH', 'WEEK', 'YEAR', 'DAYS', 'DATA', 'NEWS', 'LIST', 'TYPE',
+  'REAL', 'LIVE', 'FAST', 'SLOW', 'GOES', 'GETS', 'PUTS', 'SETS',
+  // Abbreviations that look like tickers but aren't
+  'AI', 'ML', 'EV', 'US', 'EU', 'UK', 'UN', 'AM', 'PM',
+  'ETF', 'IPO', 'CEO', 'CFO', 'CTO', 'COO', 'EPS',
+  'YTD', 'OTC', 'SEC', 'FED', 'GDP', 'CPI', 'PMI', 'RSI',
+  'ATH', 'ATL', 'EST', 'EDT', 'ET', 'FX', 'IV', 'OI',
+  // Spanish function words / verbs (1-5 chars after accent-stripping)
+  'QUE', 'CON', 'POR', 'DEL', 'LOS', 'LAS', 'UNA', 'UNO',
+  'MAS', 'MUY', 'HOY', 'YA', 'SI', 'SU', 'SON', 'SER', 'HAY',
+  'ESO', 'ESA', 'ESE', 'ESOS', 'ESAS', 'ESTA', 'ESTE', 'ESTO',
+  'PERO', 'PARA', 'COMO', 'SOBRE', 'TIENE', 'TENER', 'ESTAR', 'PODER',
+  'QUIERO', 'MEJOR', 'CREO', 'PUEDE', 'TODOS', 'PORQUE',
+  'CADA', 'POCO', 'BIEN', 'SABE', 'HACE', 'TOMA', 'PASA',
+  'DESDE', 'HACIA', 'ENTRE', 'ANTES', 'NUNCA', 'IGUAL',
+  'TANTO', 'HOLA', 'GRACIAS', 'CLARO', 'BUENO',
+]);
+
+function extractTickersFromMessage(text) {
+  if (!text) return [];
+  const tickers = [];
+  // Match optional $ prefix + 1-5 uppercase letters at word boundaries
+  const re = /(?:^|[^A-Z])\$?([A-Z]{1,5})(?=[^A-Z]|$)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const t = m[1];
+    if (!CHAT_STOP_WORDS.has(t) && !tickers.includes(t)) {
+      tickers.push(t);
+      if (tickers.length >= 3) break;
+    }
+  }
+  return tickers;
+}
+
+async function fetchTickerSnapshot(ticker) {
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 4000);
+    const url = `${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(ticker)}?apiKey=${POLYGON_KEY}`;
+    const res = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const snap = json.ticker;
+    if (!snap) return null;
+    const price     = snap.lastTrade?.p ?? snap.day?.c ?? snap.prevDay?.c ?? 0;
+    const changePct = snap.todaysChangePerc ?? 0;
+    const volume    = snap.day?.v ?? 0;
+    return { ticker, price: Number(price), changePct: Number(changePct), volume: Number(volume) };
+  } catch {
+    return null;
+  }
+}
+
+function fmtVol(v) {
+  if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
+  return String(v);
+}
+
 // ── POST /api/chat — Gemini proxy (keeps API key server-side, fixes CORS) ───────
 // Accepts OpenAI-style message arrays from the frontend.
 // Extracts the system message as systemInstruction, maps the rest to Gemini format.
@@ -368,10 +446,33 @@ app.post('/api/chat', async (req, res) => {
   const systemLen = systemMsg?.content?.length ?? 0;
   console.log(`[/api/chat] Gemini flash | turns=${nonSystem.length} system=${systemLen}chars stream=${stream}`);
 
+  // Auto-inject real-time Polygon data for any tickers in the last user message
+  const mentionedTickers = extractTickersFromMessage(lastMsg.content);
+  let realtimeBlock = '';
+  if (mentionedTickers.length > 0) {
+    const results = await Promise.allSettled(mentionedTickers.map(fetchTickerSnapshot));
+    const lines = [];
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value) {
+        const { ticker, price, changePct, volume } = r.value;
+        const sign = changePct >= 0 ? '+' : '';
+        lines.push(`${ticker}: $${price.toFixed(price < 1 ? 4 : 2)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`);
+      }
+    }
+    if (lines.length > 0) {
+      realtimeBlock = `\nREAL-TIME DATA (fetched now):\n${lines.join('\n')}\n`;
+      console.log(`[/api/chat] injected → ${lines.join(' | ')}`);
+    }
+  }
+
+  const systemInstruction = realtimeBlock
+    ? (systemMsg ? systemMsg.content + realtimeBlock : realtimeBlock.trim())
+    : systemMsg?.content;
+
   try {
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      ...(systemMsg ? { systemInstruction: systemMsg.content } : {}),
+      ...(systemInstruction ? { systemInstruction } : {}),
       generationConfig: { maxOutputTokens: max_tokens, temperature },
     });
 
