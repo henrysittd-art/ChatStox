@@ -491,7 +491,7 @@ app.post('/api/chat', async (req, res) => {
     return res.status(500).json({ error: 'GEMINI_API_KEY not configured on server' });
   }
 
-  const { messages, temperature = 0.2, max_tokens = 1800, stream = false } = req.body || {};
+  const { messages, temperature = 0.2, max_tokens = 1800, stream = false, currentTicker } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages array is required' });
   }
@@ -513,8 +513,11 @@ app.post('/api/chat', async (req, res) => {
   const systemLen = systemMsg?.content?.length ?? 0;
   console.log(`[/api/chat] Gemini flash | turns=${nonSystem.length} system=${systemLen}chars stream=${stream}`);
 
-  // Auto-inject real-time Polygon data for any tickers in the last user message
-  const mentionedTickers = extractTickersFromMessage(lastMsg.content);
+  // Auto-inject real-time Polygon data — always enrich currentTicker first, then any tickers from the message
+  const msgTickers = extractTickersFromMessage(lastMsg.content);
+  const mentionedTickers = currentTicker
+    ? [currentTicker, ...msgTickers.filter(t => t !== currentTicker)].slice(0, 3)
+    : msgTickers.slice(0, 3);
   let realtimeBlock = '';
   let noDataBlock = '';
   if (mentionedTickers.length > 0) {

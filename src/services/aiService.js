@@ -973,7 +973,7 @@ export async function callAI({ stock, question, history = [], profile, isGeneral
     { role: 'user', content: question || (isAutoAnalysis ? `Analyze ${stock?.ticker} using the real-time market data provided.` : 'What can you tell me about the market?') },
   ];
 
-  const payload = { model: AI_MODEL, temperature: 0.2, max_tokens: 1800, messages };
+  const payload = { model: AI_MODEL, temperature: 0.2, max_tokens: 1800, messages, currentTicker: stock?.ticker || null };
 
   if (onChunk) {
     return await openaiStream(payload, onChunk);
