@@ -27,6 +27,20 @@ const QUICK_ACTIONS = [
   { label: 'Market Overview', prompt: "Give me a brief overview of today's market conditions based on real-time data." },
 ];
 
+function StreamingCursor() {
+  const blink = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(blink, { toValue: 0, duration: 530, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 530, useNativeDriver: true }),
+      ])
+    ).start();
+    return () => blink.stopAnimation();
+  }, []);
+  return <Animated.Text style={{ opacity: blink, color: '#f5a623', fontWeight: '700' }}>|</Animated.Text>;
+}
+
 function TypingDots() {
   const anims = [
     useRef(new Animated.Value(0.3)).current,
@@ -83,10 +97,13 @@ function ChatBubble({ msg }) {
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}>
         {isUser ? (
           <Text style={styles.bubbleTextUser}>{msg.content}</Text>
-        ) : msg.streaming && !msg.content ? (
+        ) : msg.isStreaming && !msg.content ? (
           <TypingDots />
         ) : (
-          <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
+          <>
+            <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
+            {msg.isStreaming && <StreamingCursor />}
+          </>
         )}
       </View>
       {msg.time ? <Text style={styles.timestamp}>{formatMessageTime(msg.time)}</Text> : null}
@@ -250,10 +267,9 @@ export default function GeneralChatScreen({ navigation, route }) {
 
     // Add streaming placeholder bubble
     const streamTs = nowISO();
-    const streamMsg = { role: 'assistant', content: '', time: streamTs, streaming: true };
-    setMessages([...withDisclaimer, streamMsg]);
+    const streamingId = Date.now();
+    setMessages([...withDisclaimer, { id: streamingId, role: 'assistant', content: '', time: streamTs, isStreaming: true }]);
 
-    let rafId = null;
     try {
       const aiText = await callAI({
         isGeneral: true,
@@ -264,15 +280,9 @@ export default function GeneralChatScreen({ navigation, route }) {
         losers: losersRef.current,
         volume: volumeRef.current,
         onChunk: (text) => {
-          if (rafId != null) cancelAnimationFrame(rafId);
-          rafId = requestAnimationFrame(() => {
-            setMessages(prev => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last?.streaming) next[next.length - 1] = { ...last, content: text };
-              return next;
-            });
-          });
+          setMessages(prev => prev.map(msg =>
+            msg.id === streamingId ? { ...msg, content: text } : msg
+          ));
         },
       });
       const aiMsg = { role: 'assistant', content: aiText, time: streamTs };
@@ -283,13 +293,11 @@ export default function GeneralChatScreen({ navigation, route }) {
       await markDisclaimerSeen('general');
     } catch (e) {
       console.error('[CHATSTOX AI] openNewTab failed:', e.message);
-      setMessages(prev => {
-        const next = [...prev];
-        const errMsg = { role: 'assistant', content: aiErrorMessage(question), time: nowISO() };
-        if (next[next.length - 1]?.streaming) next[next.length - 1] = errMsg;
-        else next.push(errMsg);
-        return next;
-      });
+      setMessages(prev => prev.map(msg =>
+        msg.id === streamingId
+          ? { role: 'assistant', content: aiErrorMessage(question), time: nowISO() }
+          : msg
+      ));
     } finally {
       setThinking(false);
     }
@@ -385,10 +393,9 @@ export default function GeneralChatScreen({ navigation, route }) {
 
     // Add streaming placeholder bubble
     const streamTs = nowISO();
-    const streamMsg = { role: 'assistant', content: '', time: streamTs, streaming: true };
-    setMessages([...updated, streamMsg]);
+    const streamingId = Date.now();
+    setMessages([...updated, { id: streamingId, role: 'assistant', content: '', time: streamTs, isStreaming: true }]);
 
-    let rafId = null;
     try {
       const convoHistory = updated.filter(m => m.role === 'user' || m.role === 'assistant');
       const aiText = await callAI({
@@ -400,15 +407,9 @@ export default function GeneralChatScreen({ navigation, route }) {
         losers: losersRef.current,
         volume: volumeRef.current,
         onChunk: (text) => {
-          if (rafId != null) cancelAnimationFrame(rafId);
-          rafId = requestAnimationFrame(() => {
-            setMessages(prev => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last?.streaming) next[next.length - 1] = { ...last, content: text };
-              return next;
-            });
-          });
+          setMessages(prev => prev.map(msg =>
+            msg.id === streamingId ? { ...msg, content: text } : msg
+          ));
         },
       });
       const aiMsg = { role: 'assistant', content: aiText, time: streamTs };
@@ -424,13 +425,11 @@ export default function GeneralChatScreen({ navigation, route }) {
       }
     } catch (e) {
       console.error('[CHATSTOX AI] GeneralChat sendMessage failed:', e.message);
-      setMessages(prev => {
-        const next = [...prev];
-        const errMsg = { role: 'assistant', content: aiErrorMessage(content), time: nowISO() };
-        if (next[next.length - 1]?.streaming) next[next.length - 1] = errMsg;
-        else next.push(errMsg);
-        return next;
-      });
+      setMessages(prev => prev.map(msg =>
+        msg.id === streamingId
+          ? { role: 'assistant', content: aiErrorMessage(content), time: nowISO() }
+          : msg
+      ));
     } finally {
       setThinking(false);
     }
@@ -590,7 +589,7 @@ export default function GeneralChatScreen({ navigation, route }) {
             }
             return <ChatBubble key={i} msg={msg} />;
           })}
-          {thinking && !messages[messages.length - 1]?.streaming && (
+          {thinking && !messages[messages.length - 1]?.isStreaming && (
             <View style={styles.thinkingRow}>
               <ActivityIndicator size="small" color="#f5a623" />
               <Text style={styles.thinkingText}>Analyzing market data...</Text>

@@ -261,6 +261,20 @@ const phStyles = StyleSheet.create({
 
 // ── Typing dots animation ─────────────────────────────────────────────────────
 
+function StreamingCursor() {
+  const blink = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(blink, { toValue: 0, duration: 530, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 530, useNativeDriver: true }),
+      ])
+    ).start();
+    return () => blink.stopAnimation();
+  }, []);
+  return <Animated.Text style={{ opacity: blink, color: '#f5a623', fontWeight: '700' }}>|</Animated.Text>;
+}
+
 function TypingDots() {
   const anims = [
     useRef(new Animated.Value(0.3)).current,
@@ -325,10 +339,13 @@ function ChatBubble({ msg }) {
         </LinearGradient>
       ) : (
         <View style={styles.bubbleAI}>
-          {msg.streaming && !msg.content ? (
+          {msg.isStreaming && !msg.content ? (
             <TypingDots />
           ) : (
-            <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
+            <>
+              <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
+              {msg.isStreaming && <StreamingCursor />}
+            </>
           )}
         </View>
       )}
@@ -949,8 +966,8 @@ export default function StockChatScreen({ route, navigation }) {
             withQuestion.filter(m => m.role !== 'session_divider')
           )).catch(() => {});
           const streamTs = nowISO();
-          setMessages([...withQuestion, { role: 'assistant', content: '', time: streamTs, streaming: true }]);
-          let rafId = null;
+          const streamingId = Date.now();
+          setMessages([...withQuestion, { id: streamingId, role: 'assistant', content: '', time: streamTs, isStreaming: true }]);
           try {
             const aiText = await callAI({
               stock: q, question: pendingQuestion,
@@ -958,15 +975,9 @@ export default function StockChatScreen({ route, navigation }) {
               profile: profileRaw ? JSON.parse(profileRaw) : null,
               details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
               onChunk: (text) => {
-                if (rafId != null) cancelAnimationFrame(rafId);
-                rafId = requestAnimationFrame(() => {
-                  setMessages(prev => {
-                    const next = [...prev];
-                    const last = next[next.length - 1];
-                    if (last?.streaming) next[next.length - 1] = { ...last, content: text };
-                    return next;
-                  });
-                });
+                setMessages(prev => prev.map(msg =>
+                  msg.id === streamingId ? { ...msg, content: text } : msg
+                ));
               },
             });
             if (loadingTickerRef.current !== ticker) return;
@@ -979,13 +990,11 @@ export default function StockChatScreen({ route, navigation }) {
           } catch (e) {
             console.error(`[CHATSTOX AI] loadTicker(${ticker}) pendingQuestion failed:`, e.message);
             if (loadingTickerRef.current === ticker) {
-              setMessages(prev => {
-                const next = [...prev];
-                const errMsg = { role: 'assistant', content: aiErrorMessage(pendingQuestion), time: nowISO() };
-                if (next[next.length - 1]?.streaming) next[next.length - 1] = errMsg;
-                else next.push(errMsg);
-                return next;
-              });
+              setMessages(prev => prev.map(msg =>
+                msg.id === streamingId
+                  ? { role: 'assistant', content: aiErrorMessage(pendingQuestion), time: nowISO() }
+                  : msg
+              ));
             }
           } finally {
             if (loadingTickerRef.current === ticker) setThinking(false);
@@ -1084,23 +1093,17 @@ export default function StockChatScreen({ route, navigation }) {
         const withQuestion = [buildDisclaimerMessage(), userMsg];
         setMessages(withQuestion);
         const streamTs = nowISO();
-        setMessages([...withQuestion, { role: 'assistant', content: '', time: streamTs, streaming: true }]);
-        let rafId = null;
+        const streamingId = Date.now();
+        setMessages([...withQuestion, { id: streamingId, role: 'assistant', content: '', time: streamTs, isStreaming: true }]);
         try {
           const aiText = await callAI({
             stock: q, question: pendingQuestion, history: [],
             profile: profileRaw ? JSON.parse(profileRaw) : null,
             details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
             onChunk: (text) => {
-              if (rafId != null) cancelAnimationFrame(rafId);
-              rafId = requestAnimationFrame(() => {
-                setMessages(prev => {
-                  const next = [...prev];
-                  const last = next[next.length - 1];
-                  if (last?.streaming) next[next.length - 1] = { ...last, content: text };
-                  return next;
-                });
-              });
+              setMessages(prev => prev.map(msg =>
+                msg.id === streamingId ? { ...msg, content: text } : msg
+              ));
             },
           });
           if (loadingTickerRef.current !== ticker) return;
@@ -1336,23 +1339,16 @@ export default function StockChatScreen({ route, navigation }) {
 
       // Add streaming placeholder bubble; spinner hides automatically once bubble appears
       const streamTs = nowISO();
-      const streamMsg = { role: 'assistant', content: '', time: streamTs, streaming: true };
-      setMessages([...updated, streamMsg]);
+      const streamingId = Date.now();
+      setMessages([...updated, { id: streamingId, role: 'assistant', content: '', time: streamTs, isStreaming: true }]);
 
-      let rafId = null;
       const aiText = await callAI({
         stock: stockForCall, question: questionForAI, history: history.slice(-10),
         profile, details, news, extendedData, marketIndices, earnings,
         onChunk: (text) => {
-          if (rafId != null) cancelAnimationFrame(rafId);
-          rafId = requestAnimationFrame(() => {
-            setMessages(prev => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last?.streaming) next[next.length - 1] = { ...last, content: text };
-              return next;
-            });
-          });
+          setMessages(prev => prev.map(msg =>
+            msg.id === streamingId ? { ...msg, content: text } : msg
+          ));
         },
       });
 
@@ -1367,13 +1363,11 @@ export default function StockChatScreen({ route, navigation }) {
       }));
     } catch (e) {
       console.error(`[CHATSTOX AI] sendMessage(${currentTicker}) failed:`, e.message);
-      setMessages(prev => {
-        const next = [...prev];
-        const errMsg = { role: 'assistant', content: aiErrorMessage(content), time: nowISO() };
-        if (next[next.length - 1]?.streaming) next[next.length - 1] = errMsg;
-        else next.push(errMsg);
-        return next;
-      });
+      setMessages(prev => prev.map(msg =>
+        msg.id === streamingId
+          ? { role: 'assistant', content: aiErrorMessage(content), time: nowISO() }
+          : msg
+      ));
     } finally {
       setThinking(false);
     }
@@ -1518,7 +1512,7 @@ export default function StockChatScreen({ route, navigation }) {
               }
               return <ChatBubble key={i} msg={msg} />;
             })}
-            {thinking && !messages[messages.length - 1]?.streaming && (
+            {thinking && !messages[messages.length - 1]?.isStreaming && (
               <View style={styles.thinkingRow}>
                 <ActivityIndicator size="small" color="#f5a623" />
                 <Text style={styles.thinkingText}>CHATSTOX AI is analyzing...</Text>
