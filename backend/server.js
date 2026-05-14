@@ -373,6 +373,12 @@ const CHAT_STOP_WORDS = new Set([
   'ALGO', 'PASO', 'CAYO', 'TODAS', 'ESTAS', 'BAJA', 'SUBE',
   'TODO', 'ELLA', 'PUES', 'HIZO', 'DIJO', 'TUVO', 'ELLAS',
   'NADA', 'SIDO', 'ELLO', 'USAN', 'PIDE', 'GANA', 'MALA', 'MALO',
+  // Spanish preterite verb forms (past tense conjugations)
+  'CERRO', 'MOVIO', 'ABRIO', 'SUBIO', 'BAJO',  'ALZO',  'LLEGO',
+  'SALIO', 'ENTRO', 'GANO',  'PUSO',  'PUDO',  'VINO',  'SUPO',
+  'QUISO', 'TRAJO', 'MIDIO', 'PIDIO', 'MURIO', 'VIVIO',
+  // Spanish interrogative words
+  'DONDE', 'CUAL', 'QUIEN',
 ]);
 
 function extractTickersFromMessage(text) {

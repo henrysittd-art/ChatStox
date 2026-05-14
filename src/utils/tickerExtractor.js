@@ -292,9 +292,21 @@ export function extractTicker(text) {
   return null;
 }
 
+// Spanish verb conjugations (preterite) and question words that match the
+// 1-5 letter pattern but are never stock tickers.
+const TICKER_SEARCH_STOP_WORDS = new Set([
+  // Preterite verb forms
+  'CERRO', 'MOVIO', 'ABRIO', 'SUBIO', 'BAJO',  'CAYO',  'ALZO',  'LLEGO',
+  'SALIO', 'ENTRO', 'GANO',  'TUVO',  'HIZO',  'DIJO',  'PUSO',  'PUDO',
+  'VINO',  'SUPO',  'QUISO', 'TRAJO', 'MIDIO', 'PIDIO', 'MURIO', 'VIVIO',
+  // Interrogative / question words
+  'COMO', 'DONDE', 'CUAL', 'QUIEN',
+]);
+
 // Returns true only for inputs that look like a pure ticker search:
-// 1–5 alpha characters with no spaces (e.g. "LESL", "tsla", "aapl").
-// Anything with a space or >5 chars is treated as a question/phrase.
+// 1–5 alpha characters with no spaces AND not a known Spanish word.
 export function isTickerSearch(text) {
-  return /^[A-Za-z]{1,5}$/.test((text || '').trim());
+  const trimmed = (text || '').trim();
+  if (!/^[A-Za-z]{1,5}$/.test(trimmed)) return false;
+  return !TICKER_SEARCH_STOP_WORDS.has(trimmed.toUpperCase());
 }
