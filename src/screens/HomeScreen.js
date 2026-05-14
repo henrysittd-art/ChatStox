@@ -10,6 +10,7 @@ import { generateMarketBrief } from '../services/aiService';
 import { extractTicker } from '../utils/tickerExtractor';
 import { calcRisk } from '../utils/riskLevel';
 import { LogoIcon } from '../components/ChatstoxLogo';
+import NavPillBar from '../components/NavPillBar';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -1533,6 +1534,7 @@ export default function HomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.goldTopBar} />
+      <NavPillBar navigation={navigation} active="Home" />
       <ScrollView
         stickyHeaderIndices={[2]}
         showsVerticalScrollIndicator={false}

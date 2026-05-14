@@ -7,6 +7,7 @@ import {
 import { LogoIcon } from '../components/ChatstoxLogo';
 import { extractTicker } from '../utils/tickerExtractor';
 import { useAuth } from '../context/AuthContext';
+import NavPillBar from '../components/NavPillBar';
 
 // ── Grid icon (2×2 squares) ───────────────────────────────────────────────────
 
@@ -147,6 +148,9 @@ export default function LandingScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* ── Nav pills ──────────────────────────────────────────────────────── */}
+      <NavPillBar navigation={navigation} active={null} />
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <ScrollView

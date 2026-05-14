@@ -9,6 +9,7 @@ import { fetchTopGainers, fetchTopLosers, fetchTopVolume } from '../services/sto
 import { callAI, aiErrorMessage } from '../services/aiService';
 import { buildDisclaimerMessage, hasSeenDisclaimer, markDisclaimerSeen } from '../utils/disclaimer';
 import { LogoIcon } from '../components/ChatstoxLogo';
+import NavPillBar from '../components/NavPillBar';
 import { useTabs, generateTabName } from '../context/TabContext';
 import { extractTicker } from '../utils/tickerExtractor';
 import { detectHistoricalQuery } from '../utils/detectHistoricalQuery';
@@ -537,6 +538,9 @@ export default function GeneralChatScreen({ navigation, route }) {
           </View>
           <Text style={styles.liveBadge}>● LIVE</Text>
         </View>
+
+        {/* Nav pills */}
+        <NavPillBar navigation={navigation} active="GeneralChat" />
 
         {/* General tab bar */}
         <GeneralTabBar
