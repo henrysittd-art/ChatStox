@@ -948,15 +948,29 @@ export default function StockChatScreen({ route, navigation }) {
           await AsyncStorage.setItem(`chat_${ticker}`, JSON.stringify(
             withQuestion.filter(m => m.role !== 'session_divider')
           )).catch(() => {});
+          const streamTs = nowISO();
+          setMessages([...withQuestion, { role: 'assistant', content: '', time: streamTs, streaming: true }]);
+          let rafId = null;
           try {
             const aiText = await callAI({
               stock: q, question: pendingQuestion,
               history: withQuestion.filter(m => m.role === 'user' || m.role === 'assistant').slice(-10),
               profile: profileRaw ? JSON.parse(profileRaw) : null,
               details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
+              onChunk: (text) => {
+                if (rafId != null) cancelAnimationFrame(rafId);
+                rafId = requestAnimationFrame(() => {
+                  setMessages(prev => {
+                    const next = [...prev];
+                    const last = next[next.length - 1];
+                    if (last?.streaming) next[next.length - 1] = { ...last, content: text };
+                    return next;
+                  });
+                });
+              },
             });
             if (loadingTickerRef.current !== ticker) return;
-            const aiMsg = { role: 'assistant', content: aiText, time: nowISO() };
+            const aiMsg = { role: 'assistant', content: aiText, time: streamTs };
             const final = [...withQuestion, aiMsg];
             setMessages(final);
             await AsyncStorage.setItem(`chat_${ticker}`, JSON.stringify(
@@ -965,8 +979,16 @@ export default function StockChatScreen({ route, navigation }) {
           } catch (e) {
             console.error(`[CHATSTOX AI] loadTicker(${ticker}) pendingQuestion failed:`, e.message);
             if (loadingTickerRef.current === ticker) {
-              setMessages(prev => [...prev, { role: 'assistant', content: aiErrorMessage(pendingQuestion), time: nowISO() }]);
+              setMessages(prev => {
+                const next = [...prev];
+                const errMsg = { role: 'assistant', content: aiErrorMessage(pendingQuestion), time: nowISO() };
+                if (next[next.length - 1]?.streaming) next[next.length - 1] = errMsg;
+                else next.push(errMsg);
+                return next;
+              });
             }
+          } finally {
+            if (loadingTickerRef.current === ticker) setThinking(false);
           }
         } else {
           const timing = getAnalysisTiming(lastAnalysisTs);
@@ -1061,14 +1083,28 @@ export default function StockChatScreen({ route, navigation }) {
         };
         const withQuestion = [buildDisclaimerMessage(), userMsg];
         setMessages(withQuestion);
+        const streamTs = nowISO();
+        setMessages([...withQuestion, { role: 'assistant', content: '', time: streamTs, streaming: true }]);
+        let rafId = null;
         try {
           const aiText = await callAI({
             stock: q, question: pendingQuestion, history: [],
             profile: profileRaw ? JSON.parse(profileRaw) : null,
             details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
+            onChunk: (text) => {
+              if (rafId != null) cancelAnimationFrame(rafId);
+              rafId = requestAnimationFrame(() => {
+                setMessages(prev => {
+                  const next = [...prev];
+                  const last = next[next.length - 1];
+                  if (last?.streaming) next[next.length - 1] = { ...last, content: text };
+                  return next;
+                });
+              });
+            },
           });
           if (loadingTickerRef.current !== ticker) return;
-          const aiMsg = { role: 'assistant', content: aiText, time: nowISO() };
+          const aiMsg = { role: 'assistant', content: aiText, time: streamTs };
           const initial = [buildDisclaimerMessage(), userMsg, aiMsg];
           setMessages(initial);
           await AsyncStorage.setItem(`chat_${ticker}`, JSON.stringify(initial));
@@ -1079,6 +1115,8 @@ export default function StockChatScreen({ route, navigation }) {
           setMessages(initial);
           await AsyncStorage.setItem(`chat_${ticker}`, JSON.stringify(initial));
           await markDisclaimerSeen(ticker);
+        } finally {
+          if (loadingTickerRef.current === ticker) setThinking(false);
         }
         return;
       }

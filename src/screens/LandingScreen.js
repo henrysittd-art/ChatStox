@@ -93,7 +93,8 @@ export default function LandingScreen({ navigation }) {
     setQuery('');
     const ticker = extractTicker(raw);
     if (ticker) {
-      navigation.navigate('StockChat', { ticker });
+      const isJustTicker = raw.trim().toUpperCase() === ticker;
+      navigation.navigate('StockChat', isJustTicker ? { ticker } : { ticker, question: raw });
     } else {
       navigation.navigate('GeneralChat', { question: raw });
     }
