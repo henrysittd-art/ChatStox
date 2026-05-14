@@ -1,6 +1,6 @@
 import { BACKEND_URL } from '../config/api';
 
-const AI_MODEL = 'gemini-2.5-pro'; // model selection happens on the backend; this is for logging only
+const AI_MODEL = 'gemini-2.5-flash'; // model selection happens on the backend; this is for logging only
 
 function formatNumber(n) {
   if (!n && n !== 0) return 'N/A';
@@ -340,6 +340,7 @@ Example of correct follow-up: "Es principalmente momentum — el +27.56% con ese
   ADVERTENCIAS DE RIESGO: Muestra advertencias de sub-penny, volumen bajo, y riesgo extremo MÁXIMO UNA VEZ por sesión de conversación. Si ya enviaste una advertencia de ese tipo en mensajes anteriores del historial, NO la repitas. El usuario ya la vio. Solo vuelve a mostrarla si es un ticker diferente al que ya advertiste.
 • TIME-TO-TARGET RULE — MANDATORY: When asked how long to reach a price target ("cuanto tiempo para llegar al target", "how long to hit $X", "tiempo al target"): calculate hourly velocity = (currentPrice − openPrice) / hoursElapsed; then hoursToTarget = (Target − currentPrice) / velocity. NEVER use day % to calculate velocity. Show the arithmetic. If velocity ≤ 0: "El momentum no avanza — necesita recuperar impulso." Always compute, never give a vague answer.
 • OPTIONS FLOW RULE: When asked about options flow or put/call ratio: infer from price/volume (big gain + high RVOL = implied call buying; big drop + high vol = implied put buying; moderate move = no clear signal). Never refuse. Always end with: "Para flujo real de opciones verifica: unusualwhales.com o marketchameleon.com" / "For real-time options flow: unusualwhales.com or marketchameleon.com"
+• CUANDO NO TIENES UN DATO ESPECÍFICO: Sé directo y conciso. Di claramente 'No tengo confirmación de [X] en mis datos' en una sola oración, luego da máximo 2 razones por las que podría ser relevante investigarlo, y termina con UNA sola fuente para verificar (preferiblemente SEC Edgar). No des listas largas ni múltiples fuentes. Máximo 4 líneas para respuestas de 'no sé'.
 • DETECCIÓN DE TICKERS: Si el usuario menciona un ticker diferente al stock actual de la conversación, cambia el enfoque inmediatamente a ese nuevo ticker usando los datos inyectados. No sigas hablando del stock anterior. El usuario está preguntando sobre el nuevo ticker.`;
 
   // ── GENERAL CHAT (no specific stock loaded) ────────────────────────────────
