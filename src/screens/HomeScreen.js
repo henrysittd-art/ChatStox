@@ -7,7 +7,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchTopGainers, fetchTopLosers, fetchMarketIndices, fetchSectorSummary, fetchBriefIndices, fetchVIX, fetchQuote, fetchTickerDetails } from '../services/stockService';
 import { generateMarketBrief } from '../services/aiService';
-import { extractTicker } from '../utils/tickerExtractor';
+import { extractTicker, isTickerSearch } from '../utils/tickerExtractor';
 import { calcRisk } from '../utils/riskLevel';
 import { LogoIcon } from '../components/ChatstoxLogo';
 import NavButtons from '../components/NavButtons';
@@ -1434,9 +1434,14 @@ export default function HomeScreen({ navigation }) {
   const handleSearch = () => {
     const raw = search.trim();
     if (!raw) return;
-    const ticker = extractTicker(raw);
-    if (ticker) navigation.navigate('StockChat', { ticker, question: raw });
-    else navigation.navigate('GeneralChat', { question: raw });
+    if (isTickerSearch(raw)) {
+      // Pure ticker input (1–5 letters, no spaces) — resolve company names too
+      const ticker = extractTicker(raw) || raw.toUpperCase();
+      navigation.navigate('StockChat', { ticker, question: raw });
+    } else {
+      // Phrase or question — route to general market chat
+      navigation.navigate('GeneralChat', { question: raw });
+    }
     setSearch('');
   };
 

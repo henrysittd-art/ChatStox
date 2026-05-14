@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchQuote, fetchTickerDetails, fetchTickerNews, fetchIntradayChart, fetchExtendedData, fetchMarketIndices, fetchEarnings } from '../services/stockService';
 import { callAI, aiErrorMessage } from '../services/aiService';
 import { useTabs } from '../context/TabContext';
-import { extractTicker } from '../utils/tickerExtractor';
+import { extractTicker, isTickerSearch } from '../utils/tickerExtractor';
 import { buildDisclaimerMessage, hasSeenDisclaimer, markDisclaimerSeen } from '../utils/disclaimer';
 import { calcRisk } from '../utils/riskLevel';
 import { LogoIcon } from '../components/ChatstoxLogo';
@@ -471,13 +471,14 @@ function SearchModal({ visible, onClose, onSearch }) {
   const handleSubmit = () => {
     const raw = query.trim();
     if (!raw) return;
-    const detected = extractTicker(raw);
-    const ticker = detected || (raw.length <= 6 ? raw.toUpperCase() : null);
-    if (ticker) {
-      onSearch(ticker);
-      setQuery('');
-      onClose();
+    if (!isTickerSearch(raw)) {
+      Alert.alert('', 'Para preguntas generales usa el chat de mercado');
+      return;
     }
+    const ticker = extractTicker(raw) || raw.toUpperCase();
+    onSearch(ticker);
+    setQuery('');
+    onClose();
   };
 
   return (

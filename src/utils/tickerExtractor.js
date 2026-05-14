@@ -291,3 +291,10 @@ export function extractTicker(text) {
 
   return null;
 }
+
+// Returns true only for inputs that look like a pure ticker search:
+// 1–5 alpha characters with no spaces (e.g. "LESL", "tsla", "aapl").
+// Anything with a space or >5 chars is treated as a question/phrase.
+export function isTickerSearch(text) {
+  return /^[A-Za-z]{1,5}$/.test((text || '').trim());
+}
