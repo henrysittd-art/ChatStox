@@ -138,19 +138,8 @@ export default function LandingScreen({ navigation }) {
               <Text style={styles.signInText}>Sign In</Text>
             )}
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.pipelineBtn}
-            onPress={() => navigation.navigate('Home')}
-            activeOpacity={0.85}
-          >
-            <GridIcon size={14} color="#ffffff" />
-            <Text style={styles.pipelineBtnText}>Pipeline</Text>
-          </TouchableOpacity>
         </View>
       </View>
-
-      {/* ── Nav pills ──────────────────────────────────────────────────────── */}
-      <NavPillBar navigation={navigation} active={null} />
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <ScrollView

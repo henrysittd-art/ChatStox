@@ -1554,12 +1554,6 @@ export default function HomeScreen({ navigation }) {
             </View>
           </TouchableOpacity>
           <View style={{ flex: 1 }} />
-          <TouchableOpacity style={styles.homeBtn} onPress={() => navigation.navigate('Landing')} activeOpacity={0.8}>
-            <Text style={styles.homeBtnText}>← Home</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.chatBtn} onPress={() => navigation.navigate('GeneralChat')}>
-            <Text style={styles.chatBtnText}>Market Chat</Text>
-          </TouchableOpacity>
         </View>
 
         {/* [1] Momentum section — gray background, contains Runners + Heating Up */}
