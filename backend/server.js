@@ -397,21 +397,53 @@ function extractTickersFromMessage(text) {
   return tickers;
 }
 
+function sectorFromRef(r) {
+  if (!r) return null;
+  const s = (r.sic_description || '').toLowerCase();
+  const type = r.type || '';
+  if (type === 'ETF' || type === 'ETV') return 'ETF/Fund';
+  if (/pharma|biotech|therapeut|genomic|gene|oncol|medic|drug|clinical|trial/.test(s)) return 'Healthcare/Biotech';
+  if (/health|hospital|medical device|diagnostic/.test(s)) return 'Healthcare';
+  if (/semiconductor|chip|electronic computer|printed circuit/.test(s)) return 'Technology/Semiconductors';
+  if (/software|data processing|prepackaged/.test(s)) return 'Technology/Software';
+  if (/entertainment|gaming|amusement|casino|game|video game|motion picture/.test(s)) return 'Entertainment/Gaming';
+  if (/oil|gas|petroleum|crude|natural gas|coal|uranium/.test(s)) return 'Energy';
+  if (/solar|wind|electric services|power/.test(s)) return 'Energy/Utilities';
+  if (/gold|silver|mining|metal|copper|lithium/.test(s)) return 'Mining/Metals';
+  if (/bank|saving|federal|mortgage|credit union/.test(s)) return 'Finance/Banking';
+  if (/insurance/.test(s)) return 'Finance/Insurance';
+  if (/investment|security broker|fund/.test(s)) return 'Finance/Investment';
+  if (/retail|department store|apparel|grocery|food store/.test(s)) return 'Retail/Consumer';
+  if (/restaurant|food preparation|beverage/.test(s)) return 'Consumer/Food';
+  if (/cannabis|marijuana|hemp/.test(s)) return 'Cannabis';
+  if (/defense|aerospace|guided missile|aircraft|military/.test(s)) return 'Defense/Aerospace';
+  if (/real estate|reit|property/.test(s)) return 'Real Estate';
+  if (/shipping|freight|transportation|airline|railroad/.test(s)) return 'Transportation';
+  if (/construction|building|homebuilding/.test(s)) return 'Construction';
+  if (/radio|television|communications|telephone/.test(s)) return 'Telecom';
+  return null;
+}
+
 async function fetchTickerSnapshot(ticker) {
   try {
     const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 4000);
-    const url = `${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(ticker)}?apiKey=${POLYGON_KEY}`;
-    const res = await fetch(url, { signal: ctrl.signal });
+    const tid = setTimeout(() => ctrl.abort(), 5000);
+    const snapUrl = `${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(ticker)}?apiKey=${POLYGON_KEY}`;
+    const refUrl  = `${POLYGON_BASE}/v3/reference/tickers/${encodeURIComponent(ticker)}?apiKey=${POLYGON_KEY}`;
+    const [snapRes, refRes] = await Promise.allSettled([
+      fetch(snapUrl, { signal: ctrl.signal }).then(r => r.ok ? r.json() : null),
+      fetch(refUrl,  { signal: ctrl.signal }).then(r => r.ok ? r.json() : null),
+    ]);
     clearTimeout(tid);
-    if (!res.ok) return null;
-    const json = await res.json();
-    const snap = json.ticker;
+    const snapJson = snapRes.status === 'fulfilled' ? snapRes.value : null;
+    const refJson  = refRes.status  === 'fulfilled' ? refRes.value  : null;
+    const snap = snapJson?.ticker;
     if (!snap) return null;
     const price     = snap.lastTrade?.p ?? snap.day?.c ?? snap.prevDay?.c ?? 0;
     const changePct = snap.todaysChangePerc ?? 0;
     const volume    = snap.day?.v ?? 0;
-    return { ticker, price: Number(price), changePct: Number(changePct), volume: Number(volume) };
+    const sector    = sectorFromRef(refJson?.results);
+    return { ticker, price: Number(price), changePct: Number(changePct), volume: Number(volume), sector };
   } catch {
     return null;
   }
@@ -468,9 +500,10 @@ app.post('/api/chat', async (req, res) => {
       const r = results[i];
       const ticker = mentionedTickers[i];
       if (r.status === 'fulfilled' && r.value) {
-        const { ticker: t, price, changePct, volume } = r.value;
+        const { ticker: t, price, changePct, volume, sector } = r.value;
         const sign = changePct >= 0 ? '+' : '';
-        lines.push(`${t}: $${price.toFixed(price < 1 ? 4 : 2)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`);
+        const sectorStr = sector ? `, Sector: ${sector}` : '';
+        lines.push(`${t}: $${price.toFixed(price < 1 ? 4 : 2)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}${sectorStr}`);
       } else {
         noDataLines.push(`No hay datos de Polygon para ${ticker} en este momento. Indica al usuario que no puedes confirmar precio o datos en tiempo real para ese ticker específico, y sugiere verificar en su plataforma de trading.`);
         console.log(`[/api/chat] no-data for ${ticker}`);
