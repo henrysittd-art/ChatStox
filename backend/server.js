@@ -426,24 +426,43 @@ function sectorFromRef(r) {
 
 async function fetchTickerSnapshot(ticker) {
   try {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 5000);
-    const snapUrl = `${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(ticker)}?apiKey=${POLYGON_KEY}`;
-    const refUrl  = `${POLYGON_BASE}/v3/reference/tickers/${encodeURIComponent(ticker)}?apiKey=${POLYGON_KEY}`;
-    const [snapRes, refRes] = await Promise.allSettled([
-      fetch(snapUrl, { signal: ctrl.signal }).then(r => r.ok ? r.json() : null),
-      fetch(refUrl,  { signal: ctrl.signal }).then(r => r.ok ? r.json() : null),
+    const enc = encodeURIComponent(ticker);
+    const safeFetch = (url) => {
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), 4000);
+      return fetch(url, { signal: ctrl.signal })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null);
+    };
+    const [snapRes, refRes, splitsRes, divsRes, newsRes] = await Promise.allSettled([
+      safeFetch(`${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/${enc}?apiKey=${POLYGON_KEY}`),
+      safeFetch(`${POLYGON_BASE}/v3/reference/tickers/${enc}?apiKey=${POLYGON_KEY}`),
+      safeFetch(`${POLYGON_BASE}/v2/reference/splits?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
+      safeFetch(`${POLYGON_BASE}/v3/reference/dividends?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
+      safeFetch(`${POLYGON_BASE}/v2/reference/news?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
     ]);
-    clearTimeout(tid);
-    const snapJson = snapRes.status === 'fulfilled' ? snapRes.value : null;
-    const refJson  = refRes.status  === 'fulfilled' ? refRes.value  : null;
-    const snap = snapJson?.ticker;
+    const snap   = (snapRes.status   === 'fulfilled' ? snapRes.value   : null)?.ticker;
     if (!snap) return null;
+    const ref    = (refRes.status    === 'fulfilled' ? refRes.value    : null)?.results;
+    const splits = (splitsRes.status === 'fulfilled' ? splitsRes.value : null)?.results ?? [];
+    const divs   = (divsRes.status   === 'fulfilled' ? divsRes.value   : null)?.results ?? [];
+    const news   = (newsRes.status   === 'fulfilled' ? newsRes.value   : null)?.results ?? [];
     const price     = snap.lastTrade?.p ?? snap.day?.c ?? snap.prevDay?.c ?? 0;
     const changePct = snap.todaysChangePerc ?? 0;
     const volume    = snap.day?.v ?? 0;
-    const sector    = sectorFromRef(refJson?.results);
-    return { ticker, price: Number(price), changePct: Number(changePct), volume: Number(volume), sector };
+    return {
+      ticker,
+      price:       Number(price),
+      changePct:   Number(changePct),
+      volume:      Number(volume),
+      sector:      sectorFromRef(ref),
+      description: ref?.description ? ref.description.slice(0, 200) : null,
+      employees:   ref?.total_employees ?? null,
+      listDate:    ref?.list_date ?? null,
+      splits:      splits.map(s => `${s.split_to}-for-${s.split_from} on ${s.execution_date}`),
+      divs:        divs.map(d => `$${Number(d.cash_amount).toFixed(4)} ex-date ${d.ex_dividend_date}`),
+      news:        news.map(n => `[${(n.published_utc || '').slice(0, 10)}] ${n.title}`),
+    };
   } catch {
     return null;
   }
@@ -500,18 +519,33 @@ app.post('/api/chat', async (req, res) => {
       const r = results[i];
       const ticker = mentionedTickers[i];
       if (r.status === 'fulfilled' && r.value) {
-        const { ticker: t, price, changePct, volume, sector } = r.value;
+        const { ticker: t, price, changePct, volume, sector, description, employees, listDate, splits, divs, news } = r.value;
         const sign = changePct >= 0 ? '+' : '';
-        const sectorStr = sector ? `, Sector: ${sector}` : '';
-        lines.push(`${t}: $${price.toFixed(price < 1 ? 4 : 2)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}${sectorStr}`);
+        const block = [];
+        block.push(`REAL-TIME DATA for ${t}:`);
+        let priceLine = `Price: $${price.toFixed(price < 1 ? 4 : 2)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`;
+        if (sector) priceLine += `, Sector: ${sector}`;
+        block.push(priceLine);
+        if (description) block.push(`Description: ${description}`);
+        const meta = [];
+        if (employees) meta.push(`Employees: ${Number(employees).toLocaleString()}`);
+        if (listDate)  meta.push(`Listed: ${listDate}`);
+        if (meta.length) block.push(meta.join(' | '));
+        block.push(`Splits: ${splits.length ? splits.join('; ') : 'None on record'}`);
+        block.push(`Dividends: ${divs.length ? divs.join('; ') : 'None recent'}`);
+        if (news.length) {
+          block.push(`News (last ${news.length}):`);
+          news.forEach(n => block.push(`- ${n}`));
+        }
+        lines.push(block.join('\n'));
       } else {
         noDataLines.push(`No hay datos de Polygon para ${ticker} en este momento. Indica al usuario que no puedes confirmar precio o datos en tiempo real para ese ticker específico, y sugiere verificar en su plataforma de trading.`);
         console.log(`[/api/chat] no-data for ${ticker}`);
       }
     }
     if (lines.length > 0) {
-      realtimeBlock = `\nREAL-TIME DATA (fetched now):\n${lines.join('\n')}\n`;
-      console.log(`[/api/chat] injected → ${lines.join(' | ')}`);
+      realtimeBlock = `\n${lines.join('\n\n')}\n`;
+      console.log(`[/api/chat] injected context for: ${mentionedTickers.filter((_, i) => results[i].status === 'fulfilled' && results[i].value).join(', ')}`);
     }
     if (noDataLines.length > 0) {
       noDataBlock = `\nNO-DATA NOTICE:\n${noDataLines.join('\n')}\n`;
