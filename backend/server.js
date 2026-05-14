@@ -369,17 +369,23 @@ const CHAT_STOP_WORDS = new Set([
   'CADA', 'POCO', 'BIEN', 'SABE', 'HACE', 'TOMA', 'PASA',
   'DESDE', 'HACIA', 'ENTRE', 'ANTES', 'NUNCA', 'IGUAL',
   'TANTO', 'HOLA', 'GRACIAS', 'CLARO', 'BUENO',
+  // Spanish words that become false-positive tickers after uppercasing user input
+  'ALGO', 'PASO', 'CAYO', 'TODAS', 'ESTAS', 'BAJA', 'SUBE',
+  'TODO', 'ELLA', 'PUES', 'HIZO', 'DIJO', 'TUVO', 'ELLAS',
+  'NADA', 'SIDO', 'ELLO', 'USAN', 'PIDE', 'GANA', 'MALA', 'MALO',
 ]);
 
 function extractTickersFromMessage(text) {
   if (!text) return [];
+  // Normalize to uppercase so lowercase ticker mentions ("xela", "nvda") are caught.
+  const upper = text.toUpperCase();
   const tickers = [];
   // Match optional $ prefix + 1-5 uppercase letters at word boundaries.
   // Minimum 2 chars for non-$-prefixed words to avoid single-letter false
   // positives like I, A, Y (Spanish "and") being treated as tickers.
   const re = /(?:^|[^A-Z])\$?([A-Z]{1,5})(?=[^A-Z]|$)/g;
   let m;
-  while ((m = re.exec(text)) !== null) {
+  while ((m = re.exec(upper)) !== null) {
     const t = m[1];
     const hasDollar = m[0].includes('$');
     const minLen = hasDollar ? 1 : 2; // $C is valid; bare C is too ambiguous
