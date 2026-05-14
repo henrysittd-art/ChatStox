@@ -374,12 +374,16 @@ const CHAT_STOP_WORDS = new Set([
 function extractTickersFromMessage(text) {
   if (!text) return [];
   const tickers = [];
-  // Match optional $ prefix + 1-5 uppercase letters at word boundaries
+  // Match optional $ prefix + 1-5 uppercase letters at word boundaries.
+  // Minimum 2 chars for non-$-prefixed words to avoid single-letter false
+  // positives like I, A, Y (Spanish "and") being treated as tickers.
   const re = /(?:^|[^A-Z])\$?([A-Z]{1,5})(?=[^A-Z]|$)/g;
   let m;
   while ((m = re.exec(text)) !== null) {
     const t = m[1];
-    if (!CHAT_STOP_WORDS.has(t) && !tickers.includes(t)) {
+    const hasDollar = m[0].includes('$');
+    const minLen = hasDollar ? 1 : 2; // $C is valid; bare C is too ambiguous
+    if (t.length >= minLen && !CHAT_STOP_WORDS.has(t) && !tickers.includes(t)) {
       tickers.push(t);
       if (tickers.length >= 3) break;
     }
