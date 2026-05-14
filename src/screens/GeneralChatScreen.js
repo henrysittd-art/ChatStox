@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, Animated,
+  SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform, Animated, Easing,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -41,37 +41,34 @@ function StreamingCursor() {
   return <Animated.Text style={{ opacity: blink, color: '#f5a623', fontWeight: '700' }}>|</Animated.Text>;
 }
 
-function TypingDots() {
-  const anims = [
-    useRef(new Animated.Value(0.3)).current,
-    useRef(new Animated.Value(0.3)).current,
-    useRef(new Animated.Value(0.3)).current,
-  ];
+function TypingLogo() {
+  const rotation = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    const make = (anim, delay) => Animated.loop(
+    Animated.loop(
+      Animated.timing(rotation, {
+        toValue: 1,
+        duration: 1500,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+    Animated.loop(
       Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(anim, { toValue: 1,   duration: 400, useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 0.3, duration: 400, useNativeDriver: true }),
-        Animated.delay(400),
+        Animated.timing(scale, { toValue: 1.15, duration: 600, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1,    duration: 600, useNativeDriver: true }),
       ])
-    );
-    anims.forEach((a, i) => make(a, i * 160).start());
-    return () => anims.forEach(a => a.stopAnimation());
+    ).start();
+    return () => { rotation.stopAnimation(); scale.stopAnimation(); };
   }, []);
+  const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12 }}>
-      {anims.map((anim, i) => (
-        <Animated.View
-          key={i}
-          style={{
-            width: 6, height: 6, borderRadius: 3,
-            backgroundColor: '#9aa0aa',
-            marginHorizontal: 2,
-            opacity: anim,
-          }}
-        />
-      ))}
+    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 8 }}>
+      <Animated.Image
+        source={require('../assets/chatstox-icon.png')}
+        style={{ width: 28, height: 28, transform: [{ rotate: spin }, { scale }] }}
+        resizeMode="contain"
+      />
     </View>
   );
 }
@@ -98,7 +95,7 @@ function ChatBubble({ msg }) {
         {isUser ? (
           <Text style={styles.bubbleTextUser}>{msg.content}</Text>
         ) : msg.isStreaming && !msg.content ? (
-          <TypingDots />
+          <TypingLogo />
         ) : (
           <>
             <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
