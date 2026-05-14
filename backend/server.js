@@ -31,7 +31,7 @@ app.use(cors({
 app.use(express.json());
 
 app.use((req, res, next) => {
-  res.setTimeout(55000);
+  res.setTimeout(120000);
   next();
 });
 
@@ -538,7 +538,7 @@ app.post('/api/chat', async (req, res) => {
       res.flushHeaders();
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 55000);
+      const timeoutId = setTimeout(() => controller.abort(), 110000);
 
       try {
         const result = await chat.sendMessageStream(lastMsg.content);
@@ -560,7 +560,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    const timeoutId = setTimeout(() => controller.abort(), 110000);
     const result = await Promise.race([
       chat.sendMessage(lastMsg.content),
       new Promise((_, reject) =>
