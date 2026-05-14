@@ -355,6 +355,11 @@ app.post('/api/chat', async (req, res) => {
     parts: [{ text: m.content }],
   }));
 
+  // Gemini requires conversation history to start with a 'user' turn
+  while (history.length > 0 && history[0].role === 'model') {
+    history.shift();
+  }
+
   const systemLen = systemMsg?.content?.length ?? 0;
   console.log(`[/api/chat] Gemini flash | turns=${nonSystem.length} system=${systemLen}chars stream=${stream}`);
 
