@@ -10,7 +10,6 @@ import { generateMarketBrief } from '../services/aiService';
 import { extractTicker } from '../utils/tickerExtractor';
 import { calcRisk } from '../utils/riskLevel';
 import { LogoIcon } from '../components/ChatstoxLogo';
-import NavPillBar from '../components/NavPillBar';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -1534,7 +1533,6 @@ export default function HomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.goldTopBar} />
-      <NavPillBar navigation={navigation} active="Home" />
       <ScrollView
         stickyHeaderIndices={[2]}
         showsVerticalScrollIndicator={false}
@@ -1554,6 +1552,17 @@ export default function HomeScreen({ navigation }) {
             </View>
           </TouchableOpacity>
           <View style={{ flex: 1 }} />
+          <View style={styles.navPills}>
+            <TouchableOpacity style={[styles.navPill, styles.navPillActive]} activeOpacity={1}>
+              <Text style={[styles.navPillText, styles.navPillTextActive]}>Pipeline</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navPill} onPress={() => navigation.navigate('GeneralChat')} activeOpacity={0.75}>
+              <Text style={styles.navPillText}>Market Chat</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navPill} onPress={() => navigation.navigate('StockChat')} activeOpacity={0.75}>
+              <Text style={styles.navPillText}>Stock Chat</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* [1] Momentum section — gray background, contains Runners + Heating Up */}
@@ -1769,17 +1778,15 @@ const styles = StyleSheet.create({
   brandBlock:     { flexDirection: 'column', justifyContent: 'center' },
   appName:        { fontSize: 18, fontWeight: '900', color: '#0a1628', letterSpacing: 1, lineHeight: 20 },
   statusDot:      { fontSize: 9, fontWeight: '500', letterSpacing: 0.2, lineHeight: 12 },
-  homeBtn: {
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, marginRight: 6,
-    borderWidth: 1, borderColor: '#e2e8f0',
+  navPills: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  navPill: {
+    paddingHorizontal: 14, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1, borderColor: '#0a1628',
+    backgroundColor: '#ffffff',
   },
-  homeBtnText: { color: '#64748b', fontWeight: '600', fontSize: 12 },
-  chatBtn: {
-    backgroundColor: '#0a1628', paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 20,
-  },
-  chatBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 12 },
+  navPillActive: { backgroundColor: '#0a1628', borderColor: '#f5a623' },
+  navPillText: { fontSize: 12, fontWeight: '600', color: '#0a1628' },
+  navPillTextActive: { color: '#ffffff' },
 
   avatarBtn: { marginLeft: 8 },
   avatarCircle: {
