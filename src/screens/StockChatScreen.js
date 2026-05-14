@@ -15,7 +15,7 @@ import { extractTicker } from '../utils/tickerExtractor';
 import { buildDisclaimerMessage, hasSeenDisclaimer, markDisclaimerSeen } from '../utils/disclaimer';
 import { calcRisk } from '../utils/riskLevel';
 import { LogoIcon } from '../components/ChatstoxLogo';
-import NavPillBar from '../components/NavPillBar';
+import NavButtons from '../components/NavButtons';
 import { detectHistoricalQuery } from '../utils/detectHistoricalQuery';
 import { nowISO, formatMessageTime } from '../utils/formatTime';
 import { BACKEND_URL } from '../config/api';
@@ -1444,8 +1444,10 @@ export default function StockChatScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Nav pills */}
-        <NavPillBar navigation={navigation} active="StockChat" />
+        {/* Nav buttons */}
+        <View style={styles.navButtonsBar}>
+          <NavButtons currentScreen="StockChat" navigation={navigation} />
+        </View>
 
         {/* Tab bar — stock tabs only */}
         {tabs.some(t => !t.type || t.type === 'stock') ? (
@@ -1614,6 +1616,11 @@ export default function StockChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f7f8fa' },
   goldTopBar: { height: 2, backgroundColor: '#f5a623' },
+  navButtonsBar: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 7,
+    backgroundColor: '#fff', borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#cbd5e1',
+  },
 
   header: {
     flexDirection: 'row',

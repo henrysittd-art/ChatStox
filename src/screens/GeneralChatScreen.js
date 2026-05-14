@@ -9,7 +9,7 @@ import { fetchTopVolume } from '../services/stockService';
 import { callAI, aiErrorMessage } from '../services/aiService';
 import { buildDisclaimerMessage, hasSeenDisclaimer, markDisclaimerSeen } from '../utils/disclaimer';
 import { LogoIcon } from '../components/ChatstoxLogo';
-import NavPillBar from '../components/NavPillBar';
+import NavButtons from '../components/NavButtons';
 import { useTabs, generateTabName } from '../context/TabContext';
 import { extractTicker } from '../utils/tickerExtractor';
 import { detectHistoricalQuery } from '../utils/detectHistoricalQuery';
@@ -527,8 +527,10 @@ export default function GeneralChatScreen({ navigation, route }) {
           <Text style={styles.liveBadge}>● LIVE</Text>
         </View>
 
-        {/* Nav pills */}
-        <NavPillBar navigation={navigation} active="GeneralChat" />
+        {/* Nav buttons */}
+        <View style={styles.navButtonsBar}>
+          <NavButtons currentScreen="GeneralChat" navigation={navigation} />
+        </View>
 
         {/* General tab bar */}
         <GeneralTabBar
@@ -616,6 +618,11 @@ const styles = StyleSheet.create({
 
   // ── Header ──
   goldBar: { height: 2, backgroundColor: '#f5a623' },
+  navButtonsBar: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 7,
+    backgroundColor: '#fff', borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#cbd5e1',
+  },
   header: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#ffffff',

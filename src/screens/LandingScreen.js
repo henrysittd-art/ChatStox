@@ -7,7 +7,7 @@ import {
 import { LogoIcon } from '../components/ChatstoxLogo';
 import { extractTicker } from '../utils/tickerExtractor';
 import { useAuth } from '../context/AuthContext';
-import NavPillBar from '../components/NavPillBar';
+import NavButtons from '../components/NavButtons';
 
 // ── Grid icon (2×2 squares) ───────────────────────────────────────────────────
 
@@ -123,15 +123,7 @@ export default function LandingScreen({ navigation }) {
           <Text style={styles.navBrand}>ChatStox</Text>
         </View>
         <View style={styles.navRight}>
-          <TouchableOpacity style={styles.lnPill} onPress={() => navigation.navigate('Home')} activeOpacity={0.75}>
-            <Text style={styles.lnPillText}>Pipeline</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.lnPill} onPress={() => navigation.navigate('GeneralChat')} activeOpacity={0.75}>
-            <Text style={styles.lnPillText}>Market Chat</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.lnPill} onPress={() => navigation.navigate('StockChat')} activeOpacity={0.75}>
-            <Text style={styles.lnPillText}>Stock Chat</Text>
-          </TouchableOpacity>
+          <NavButtons currentScreen={null} navigation={navigation} />
           <TouchableOpacity
             style={styles.signInBtn}
             onPress={() => navigation.navigate(user ? 'Settings' : 'Auth')}
@@ -270,12 +262,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  lnPill: {
-    paddingHorizontal: 14, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1, borderColor: '#0a1628',
-    backgroundColor: '#ffffff',
-  },
-  lnPillText: { fontSize: 12, fontWeight: '600', color: '#0a1628' },
   signInBtn: {
     borderRadius: 20,
     paddingVertical: 7,
