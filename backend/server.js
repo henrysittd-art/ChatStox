@@ -30,6 +30,11 @@ app.use(cors({
 }));
 app.use(express.json());
 
+app.use((req, res, next) => {
+  res.setTimeout(55000);
+  next();
+});
+
 // ── Fetch helper ──────────────────────────────────────────────────────────────
 async function polyFetch(path) {
   const sep = path.includes('?') ? '&' : '?';
@@ -378,9 +383,13 @@ app.post('/api/chat', async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders();
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 55000);
+
       try {
         const result = await chat.sendMessageStream(lastMsg.content);
         for await (const chunk of result.stream) {
+          if (controller.signal.aborted) break;
           const token = chunk.text();
           if (token) {
             res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: token } }] })}\n\n`);
@@ -390,13 +399,22 @@ app.post('/api/chat', async (req, res) => {
       } catch (e) {
         console.error('[/api/chat] Gemini stream error:', e.message);
       } finally {
+        clearTimeout(timeoutId);
         res.end();
       }
       return;
     }
 
-    const result = await chat.sendMessage(lastMsg.content);
-    const text   = result.response.text();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    const result = await Promise.race([
+      chat.sendMessage(lastMsg.content),
+      new Promise((_, reject) =>
+        controller.signal.addEventListener('abort', () => reject(new Error('Gemini timeout after 55s')))
+      ),
+    ]);
+    clearTimeout(timeoutId);
+    const text = result.response.text();
     console.log(`[/api/chat] ✓ Gemini ${text.length} chars`);
     res.json({ choices: [{ message: { content: text } }] });
   } catch (e) {
