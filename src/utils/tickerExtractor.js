@@ -67,6 +67,9 @@ const STOP_WORDS = new Set([
   'han', 'haber', 'habia', 'había', 'hubo', 'hayan', 'haya',
   'subio', 'subió', 'sube', 'suben', 'subir', 'baja', 'bajan', 'bajó',
   'salen', 'caen', 'creen', 'piden', 'usan', 'ven', 'dan', 'van',
+  // Spanish — verb infinitives (3-5 chars after accent-stripping) commonly mistaken for tickers
+  'estar', 'poder', 'tener', 'hacer', 'venir', 'salir',
+  'ganar', 'tomar', 'pasar', 'mirar', 'bajar', 'desde', 'hacia',
   // Spanish — question/conversation verbs / nouns that look like tickers
   'pero', 'broker',
   'ayuda', 'ayudo', 'ayudar',

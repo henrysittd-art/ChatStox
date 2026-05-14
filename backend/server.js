@@ -370,7 +370,7 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-pro',
+      model: 'gemini-2.5-flash',
       ...(systemMsg ? { systemInstruction: systemMsg.content } : {}),
       generationConfig: { maxOutputTokens: max_tokens, temperature },
     });
