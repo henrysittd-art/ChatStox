@@ -450,6 +450,12 @@ async function fetchTickerSnapshot(ticker) {
     const price     = snap.lastTrade?.p ?? snap.day?.c ?? snap.prevDay?.c ?? 0;
     const changePct = snap.todaysChangePerc ?? 0;
     const volume    = snap.day?.v ?? 0;
+    console.log('[TICKER ENRICHMENT]', ticker, JSON.stringify({
+      price: Number(price),
+      splits: splits.map(s => `${s.split_to}-for-${s.split_from} on ${s.execution_date}`),
+      newsCount: news.length,
+      description: ref?.description?.substring(0, 50),
+    }));
     return {
       ticker,
       price:       Number(price),
@@ -555,6 +561,8 @@ app.post('/api/chat', async (req, res) => {
   const systemInstruction = (realtimeBlock || noDataBlock)
     ? (systemMsg ? systemMsg.content + realtimeBlock + noDataBlock : (realtimeBlock + noDataBlock).trim())
     : systemMsg?.content;
+
+  console.log('[INJECTED CONTEXT]', realtimeBlock?.substring(0, 200));
 
   try {
     const model = genAI.getGenerativeModel({
