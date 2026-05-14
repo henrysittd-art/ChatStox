@@ -1420,7 +1420,6 @@ export default function StockChatScreen({ route, navigation }) {
             <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.menuBtn} activeOpacity={0.7}>
               <Text style={styles.menuIcon}>☰</Text>
             </TouchableOpacity>
-            <NavButtons currentScreen="StockChat" navigation={navigation} />
           </View>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTicker}>{currentTicker}</Text>
@@ -1446,21 +1445,26 @@ export default function StockChatScreen({ route, navigation }) {
         </View>
 
         {/* Tab bar — stock tabs only */}
-        {tabs.some(t => !t.type || t.type === 'stock') ? (
-          <TabBar
-            tabs={tabs}
-            activeTicker={currentTicker}
-            onTabPress={handleTabPress}
-            onTabClose={handleTabClose}
-            onAddPress={() => setShowSearch(true)}
-          />
-        ) : (
-          <View style={styles.emptyTabBar}>
-            <TouchableOpacity onPress={() => setShowSearch(true)} style={styles.addTabBtn}>
-              <Text style={styles.addTabBtnText}>+ Open another stock</Text>
-            </TouchableOpacity>
+        <View style={styles.tabRow}>
+          <NavButtons currentScreen="StockChat" navigation={navigation} />
+          <View style={{ flex: 1 }}>
+            {tabs.some(t => !t.type || t.type === 'stock') ? (
+              <TabBar
+                tabs={tabs}
+                activeTicker={currentTicker}
+                onTabPress={handleTabPress}
+                onTabClose={handleTabClose}
+                onAddPress={() => setShowSearch(true)}
+              />
+            ) : (
+              <View style={styles.emptyTabBar}>
+                <TouchableOpacity onPress={() => setShowSearch(true)} style={styles.addTabBtn}>
+                  <Text style={styles.addTabBtnText}>+ Open another stock</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
-        )}
+        </View>
 
         {/* Chart */}
         {!loading && currentTicker && (
@@ -1640,6 +1644,7 @@ const styles = StyleSheet.create({
   headerRisk:   { fontSize: 9, fontWeight: '600', marginTop: 2 },
 
   // Empty tab bar (no tabs open)
+  tabRow: { flexDirection: 'row', alignItems: 'center' },
   emptyTabBar: {
     backgroundColor: '#fff',
     height: 40,

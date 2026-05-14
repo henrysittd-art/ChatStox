@@ -521,7 +521,6 @@ export default function GeneralChatScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.menuBtn} activeOpacity={0.7}>
             <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
-          <NavButtons currentScreen="GeneralChat" navigation={navigation} />
           <View style={styles.headerInfo}>
             <Text style={styles.headerTitle}>Market Chat</Text>
           </View>
@@ -529,12 +528,17 @@ export default function GeneralChatScreen({ navigation, route }) {
         </View>
 
         {/* General tab bar */}
-        <GeneralTabBar
-          tabs={generalTabs}
-          activeId={currentTabId}
-          onTabPress={switchToTab}
-          onTabClose={handleTabClose}
-        />
+        <View style={styles.tabRow}>
+          <NavButtons currentScreen="GeneralChat" navigation={navigation} />
+          <View style={{ flex: 1 }}>
+            <GeneralTabBar
+              tabs={generalTabs}
+              activeId={currentTabId}
+              onTabPress={switchToTab}
+              onTabClose={handleTabClose}
+            />
+          </View>
+        </View>
 
         {/* Messages */}
         <ScrollView
@@ -614,6 +618,7 @@ const styles = StyleSheet.create({
 
   // ── Header ──
   goldBar: { height: 2, backgroundColor: '#f5a623' },
+  tabRow: { flexDirection: 'row', alignItems: 'center' },
   header: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#ffffff',
