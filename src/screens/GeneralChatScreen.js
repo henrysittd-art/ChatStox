@@ -510,6 +510,11 @@ export default function GeneralChatScreen({ navigation, route }) {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
 
+        {/* Nav top row */}
+        <View style={styles.navTopRow}>
+          <NavButtons currentScreen="GeneralChat" navigation={navigation} />
+        </View>
+
         {/* Gold accent bar */}
         <View style={styles.goldBar} />
 
@@ -528,17 +533,12 @@ export default function GeneralChatScreen({ navigation, route }) {
         </View>
 
         {/* General tab bar */}
-        <View style={styles.tabRow}>
-          <NavButtons currentScreen="GeneralChat" navigation={navigation} />
-          <View style={{ flex: 1 }}>
-            <GeneralTabBar
-              tabs={generalTabs}
-              activeId={currentTabId}
-              onTabPress={switchToTab}
-              onTabClose={handleTabClose}
-            />
-          </View>
-        </View>
+        <GeneralTabBar
+          tabs={generalTabs}
+          activeId={currentTabId}
+          onTabPress={switchToTab}
+          onTabClose={handleTabClose}
+        />
 
         {/* Messages */}
         <ScrollView
@@ -618,7 +618,17 @@ const styles = StyleSheet.create({
 
   // ── Header ──
   goldBar: { height: 2, backgroundColor: '#f5a623' },
-  tabRow: { flexDirection: 'row', alignItems: 'center' },
+  navTopRow: {
+    backgroundColor: 'white',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
   header: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#ffffff',

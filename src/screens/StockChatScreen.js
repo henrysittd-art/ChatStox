@@ -1408,6 +1408,11 @@ export default function StockChatScreen({ route, navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={80}
       >
+        {/* Nav top row */}
+        <View style={styles.navTopRow}>
+          <NavButtons currentScreen="StockChat" navigation={navigation} />
+        </View>
+
         {/* Gold top stripe */}
         <View style={styles.goldTopBar} />
 
@@ -1445,26 +1450,21 @@ export default function StockChatScreen({ route, navigation }) {
         </View>
 
         {/* Tab bar — stock tabs only */}
-        <View style={styles.tabRow}>
-          <NavButtons currentScreen="StockChat" navigation={navigation} />
-          <View style={{ flex: 1 }}>
-            {tabs.some(t => !t.type || t.type === 'stock') ? (
-              <TabBar
-                tabs={tabs}
-                activeTicker={currentTicker}
-                onTabPress={handleTabPress}
-                onTabClose={handleTabClose}
-                onAddPress={() => setShowSearch(true)}
-              />
-            ) : (
-              <View style={styles.emptyTabBar}>
-                <TouchableOpacity onPress={() => setShowSearch(true)} style={styles.addTabBtn}>
-                  <Text style={styles.addTabBtnText}>+ Open another stock</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+        {tabs.some(t => !t.type || t.type === 'stock') ? (
+          <TabBar
+            tabs={tabs}
+            activeTicker={currentTicker}
+            onTabPress={handleTabPress}
+            onTabClose={handleTabClose}
+            onAddPress={() => setShowSearch(true)}
+          />
+        ) : (
+          <View style={styles.emptyTabBar}>
+            <TouchableOpacity onPress={() => setShowSearch(true)} style={styles.addTabBtn}>
+              <Text style={styles.addTabBtnText}>+ Open another stock</Text>
+            </TouchableOpacity>
           </View>
-        </View>
+        )}
 
         {/* Chart */}
         {!loading && currentTicker && (
@@ -1644,7 +1644,17 @@ const styles = StyleSheet.create({
   headerRisk:   { fontSize: 9, fontWeight: '600', marginTop: 2 },
 
   // Empty tab bar (no tabs open)
-  tabRow: { flexDirection: 'row', alignItems: 'center' },
+  navTopRow: {
+    backgroundColor: 'white',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
   emptyTabBar: {
     backgroundColor: '#fff',
     height: 40,
