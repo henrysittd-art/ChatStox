@@ -437,7 +437,7 @@ async function fetchTickerSnapshot(ticker) {
     const [snapRes, refRes, splitsRes, divsRes, newsRes] = await Promise.allSettled([
       safeFetch(`${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/${enc}?apiKey=${POLYGON_KEY}`),
       safeFetch(`${POLYGON_BASE}/v3/reference/tickers/${enc}?apiKey=${POLYGON_KEY}`),
-      safeFetch(`${POLYGON_BASE}/v2/reference/splits?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
+      safeFetch(`${POLYGON_BASE}/v3/reference/splits?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
       safeFetch(`${POLYGON_BASE}/v3/reference/dividends?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
       safeFetch(`${POLYGON_BASE}/v2/reference/news?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
     ]);
