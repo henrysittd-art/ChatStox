@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fetchTopGainers, fetchTopLosers, fetchTopVolume } from '../services/stockService';
+import { fetchTopVolume } from '../services/stockService';
 import { callAI, aiErrorMessage } from '../services/aiService';
 import { buildDisclaimerMessage, hasSeenDisclaimer, markDisclaimerSeen } from '../utils/disclaimer';
 import { LogoIcon } from '../components/ChatstoxLogo';
@@ -183,8 +183,6 @@ const gtStyles = StyleSheet.create({
 export default function GeneralChatScreen({ navigation, route }) {
   const { tabs, tabsLoaded, addGeneralTab, closeTab } = useTabs();
 
-  const [gainers, setGainers] = useState([]);
-  const [losers, setLosers] = useState([]);
   const [volume, setVolume] = useState([]);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -196,8 +194,6 @@ export default function GeneralChatScreen({ navigation, route }) {
 
   const scrollRef = useRef(null);
   // Refs so callbacks always see fresh values without re-creating
-  const gainersRef       = useRef([]);
-  const losersRef        = useRef([]);
   const volumeRef        = useRef([]);
   const profileRef       = useRef(null);
   const currentTabIdRef  = useRef(null);
@@ -274,8 +270,6 @@ export default function GeneralChatScreen({ navigation, route }) {
         question: questionForAI,
         history: [userMsg],
         profile: profileRef.current,
-        gainers: gainersRef.current,
-        losers: losersRef.current,
         volume: volumeRef.current,
         onChunk: (text) => {
           setMessages(prev => prev.map(msg =>
@@ -401,8 +395,6 @@ export default function GeneralChatScreen({ navigation, route }) {
         question: questionForAI,
         history: convoHistory.slice(-10),
         profile: profileRef.current,
-        gainers: gainersRef.current,
-        losers: losersRef.current,
         volume: volumeRef.current,
         onChunk: (text) => {
           setMessages(prev => prev.map(msg =>
@@ -439,14 +431,10 @@ export default function GeneralChatScreen({ navigation, route }) {
     const init = async () => {
       setLoading(true);
       try {
-        const [g, l, v, profileRaw] = await Promise.all([
-          fetchTopGainers(),
-          fetchTopLosers(),
+        const [v, profileRaw] = await Promise.all([
           fetchTopVolume(),
           AsyncStorage.getItem('userProfile'),
         ]);
-        gainersRef.current = g; setGainers(g);
-        losersRef.current  = l; setLosers(l);
         volumeRef.current  = v; setVolume(v);
         const parsedProfile = profileRaw ? JSON.parse(profileRaw) : null;
         if (parsedProfile) { profileRef.current = parsedProfile; setProfile(parsedProfile); }
@@ -550,19 +538,6 @@ export default function GeneralChatScreen({ navigation, route }) {
           onTabClose={handleTabClose}
         />
 
-        {/* Market Summary Strip */}
-        {gainers.length > 0 && (
-          <View style={styles.summaryStrip}>
-            <Text style={styles.sumGreen}>
-              ▲ {gainers[0]?.ticker} +{Number(gainers[0]?.changePercent).toFixed(1)}%
-            </Text>
-            <View style={styles.summaryDivider} />
-            <Text style={styles.sumRed}>
-              ▼ {losers[0]?.ticker} {Number(losers[0]?.changePercent).toFixed(1)}%
-            </Text>
-          </View>
-        )}
-
         {/* Messages */}
         <ScrollView
           ref={scrollRef}
@@ -654,18 +629,6 @@ const styles = StyleSheet.create({
   headerInfo:  { flex: 1 },
   headerTitle: { fontSize: 17, fontWeight: '800', color: '#0a1628', letterSpacing: 0.3, textAlign: 'center' },
   liveBadge:   { color: '#22c55e', fontSize: 11, fontWeight: '800', letterSpacing: 0.8, flexShrink: 0 },
-
-  // ── Market Summary Strip ──
-  summaryStrip: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16, paddingVertical: 7,
-    borderBottomWidth: 1, borderBottomColor: '#f0f0f0',
-    gap: 12,
-  },
-  sumGreen:       { fontSize: 11, fontWeight: '700', color: '#16a34a' },
-  sumRed:         { fontSize: 11, fontWeight: '700', color: '#dc2626' },
-  summaryDivider: { width: 1, height: 12, backgroundColor: '#e0e0e0' },
 
   // ── Messages ──
   messages:        { flex: 1, backgroundColor: '#f7f8fa' },
