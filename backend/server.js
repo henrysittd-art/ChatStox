@@ -459,31 +459,41 @@ app.post('/api/chat', async (req, res) => {
   // Auto-inject real-time Polygon data for any tickers in the last user message
   const mentionedTickers = extractTickersFromMessage(lastMsg.content);
   let realtimeBlock = '';
+  let noDataBlock = '';
   if (mentionedTickers.length > 0) {
     const results = await Promise.allSettled(mentionedTickers.map(fetchTickerSnapshot));
     const lines = [];
-    for (const r of results) {
+    const noDataLines = [];
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      const ticker = mentionedTickers[i];
       if (r.status === 'fulfilled' && r.value) {
-        const { ticker, price, changePct, volume } = r.value;
+        const { ticker: t, price, changePct, volume } = r.value;
         const sign = changePct >= 0 ? '+' : '';
-        lines.push(`${ticker}: $${price.toFixed(price < 1 ? 4 : 2)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`);
+        lines.push(`${t}: $${price.toFixed(price < 1 ? 4 : 2)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`);
+      } else {
+        noDataLines.push(`No hay datos de Polygon para ${ticker} en este momento. Indica al usuario que no puedes confirmar precio o datos en tiempo real para ese ticker específico, y sugiere verificar en su plataforma de trading.`);
+        console.log(`[/api/chat] no-data for ${ticker}`);
       }
     }
     if (lines.length > 0) {
       realtimeBlock = `\nREAL-TIME DATA (fetched now):\n${lines.join('\n')}\n`;
       console.log(`[/api/chat] injected → ${lines.join(' | ')}`);
     }
+    if (noDataLines.length > 0) {
+      noDataBlock = `\nNO-DATA NOTICE:\n${noDataLines.join('\n')}\n`;
+    }
   }
 
-  const systemInstruction = realtimeBlock
-    ? (systemMsg ? systemMsg.content + realtimeBlock : realtimeBlock.trim())
+  const systemInstruction = (realtimeBlock || noDataBlock)
+    ? (systemMsg ? systemMsg.content + realtimeBlock + noDataBlock : (realtimeBlock + noDataBlock).trim())
     : systemMsg?.content;
 
   try {
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       ...(systemInstruction ? { systemInstruction } : {}),
-      generationConfig: { maxOutputTokens: max_tokens, temperature },
+      generationConfig: { maxOutputTokens: Math.max(Number(max_tokens) || 2400, 2400), temperature },
     });
 
     const chat = model.startChat({ history });
