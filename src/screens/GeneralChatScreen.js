@@ -521,15 +521,11 @@ export default function GeneralChatScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.menuBtn} activeOpacity={0.7}>
             <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
+          <NavButtons currentScreen="GeneralChat" navigation={navigation} />
           <View style={styles.headerInfo}>
             <Text style={styles.headerTitle}>Market Chat</Text>
           </View>
           <Text style={styles.liveBadge}>● LIVE</Text>
-        </View>
-
-        {/* Nav buttons */}
-        <View style={styles.navButtonsBar}>
-          <NavButtons currentScreen="GeneralChat" navigation={navigation} />
         </View>
 
         {/* General tab bar */}
@@ -618,11 +614,6 @@ const styles = StyleSheet.create({
 
   // ── Header ──
   goldBar: { height: 2, backgroundColor: '#f5a623' },
-  navButtonsBar: {
-    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 7,
-    backgroundColor: '#fff', borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#cbd5e1',
-  },
   header: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#ffffff',

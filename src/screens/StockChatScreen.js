@@ -1420,6 +1420,7 @@ export default function StockChatScreen({ route, navigation }) {
             <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.menuBtn} activeOpacity={0.7}>
               <Text style={styles.menuIcon}>☰</Text>
             </TouchableOpacity>
+            <NavButtons currentScreen="StockChat" navigation={navigation} />
           </View>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTicker}>{currentTicker}</Text>
@@ -1442,11 +1443,6 @@ export default function StockChatScreen({ route, navigation }) {
             />
             {stock && <PriceHeader stock={stock} />}
           </View>
-        </View>
-
-        {/* Nav buttons */}
-        <View style={styles.navButtonsBar}>
-          <NavButtons currentScreen="StockChat" navigation={navigation} />
         </View>
 
         {/* Tab bar — stock tabs only */}
@@ -1616,11 +1612,6 @@ export default function StockChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f7f8fa' },
   goldTopBar: { height: 2, backgroundColor: '#f5a623' },
-  navButtonsBar: {
-    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 7,
-    backgroundColor: '#fff', borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#cbd5e1',
-  },
 
   header: {
     flexDirection: 'row',
