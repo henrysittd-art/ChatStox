@@ -452,7 +452,7 @@ async function fetchTickerSnapshot(ticker) {
     const volume    = snap.day?.v ?? 0;
     console.log('[TICKER ENRICHMENT]', ticker, JSON.stringify({
       price: Number(price),
-      splits: splits.map(s => `${s.split_to}-for-${s.split_from} on ${s.execution_date}`),
+      splits: splits.map(s => `${s.split_to}-for-${s.split_from}${s.split_to < s.split_from ? ' reverse split' : ''} on ${s.execution_date}`),
       newsCount: news.length,
       description: ref?.description?.substring(0, 50),
     }));
@@ -465,7 +465,7 @@ async function fetchTickerSnapshot(ticker) {
       description: ref?.description ? ref.description.slice(0, 200) : null,
       employees:   ref?.total_employees ?? null,
       listDate:    ref?.list_date ?? null,
-      splits:      splits.map(s => `${s.split_to}-for-${s.split_from} on ${s.execution_date}`),
+      splits:      splits.map(s => `${s.split_to}-for-${s.split_from}${s.split_to < s.split_from ? ' reverse split' : ''} on ${s.execution_date}`),
       divs:        divs.map(d => `$${Number(d.cash_amount).toFixed(4)} ex-date ${d.ex_dividend_date}`),
       news:        news.map(n => `[${(n.published_utc || '').slice(0, 10)}] ${n.title}`),
     };
