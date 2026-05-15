@@ -521,11 +521,13 @@ app.post('/api/chat', async (req, res) => {
   const systemLen = systemMsg?.content?.length ?? 0;
   console.log(`[/api/chat] Gemini flash | turns=${nonSystem.length} system=${systemLen}chars stream=${stream}`);
 
-  // Auto-inject real-time Polygon data — always enrich currentTicker first, then any tickers from the message
+  // Auto-inject real-time Polygon data — always enrich currentTicker first, then any tickers from the message.
+  // In general chat (no currentTicker) always include SPY and QQQ as market proxies so the AI knows
+  // whether the market is up/down/closed and can answer market-wide questions accurately.
   const msgTickers = extractTickersFromMessage(lastMsg.content);
   const mentionedTickers = currentTicker
     ? [currentTicker, ...msgTickers.filter(t => t !== currentTicker)].slice(0, 3)
-    : msgTickers.slice(0, 3);
+    : ['SPY', 'QQQ', ...msgTickers.filter(t => t !== 'SPY' && t !== 'QQQ')].slice(0, 4);
   let realtimeBlock = '';
   let noDataBlock = '';
   if (mentionedTickers.length > 0) {
