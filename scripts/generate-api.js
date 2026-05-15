@@ -1,15 +1,10 @@
 const fs = require('fs');
 
-const openaiKey  = process.env.OPENAI_KEY      || '';
 const polygonKey = process.env.POLYGON_API_KEY || '';
 
-if (!openaiKey)  console.warn('[generate-api] WARNING: OPENAI_KEY env var not set');
 if (!polygonKey) console.warn('[generate-api] WARNING: POLYGON_API_KEY env var not set');
 
 const content = `import ENV from './env';
-export const OPENAI_KEY      = '${openaiKey}';
-export const OPENAI_MODEL    = 'gpt-4o-mini';
-export const OPENAI_BASE_URL = 'https://api.openai.com/v1/chat/completions';
 
 export const POLYGON_API_KEY = '${polygonKey}';
 export const POLYGON_BASE    = 'https://api.polygon.io';
