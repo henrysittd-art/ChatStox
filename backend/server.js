@@ -360,6 +360,8 @@ const CHAT_STOP_WORDS = new Set([
   'ETF', 'IPO', 'CEO', 'CFO', 'CTO', 'COO', 'EPS',
   'YTD', 'OTC', 'SEC', 'FED', 'GDP', 'CPI', 'PMI', 'RSI',
   'ATH', 'ATL', 'EST', 'EDT', 'ET', 'FX', 'IV', 'OI',
+  // Spanish articles / prepositions / pronouns (single and short words)
+  'EL', 'LA', 'AL', 'UN', 'SE', 'ME', 'TE', 'LE', 'NO', 'SIN',
   // Spanish function words / verbs (1-5 chars after accent-stripping)
   'QUE', 'CON', 'POR', 'DEL', 'LOS', 'LAS', 'UNA', 'UNO',
   'MAS', 'MUY', 'HOY', 'YA', 'SI', 'SU', 'SON', 'SER', 'HAY',
