@@ -1,4 +1,4 @@
 {
-  "buildCommand": "node scripts/generate-api.js && npx expo export --platform web",
+  "buildCommand": "node scripts/generate-api.js && npx expo export --platform web --clear",
   "outputDirectory": "dist"
 }
