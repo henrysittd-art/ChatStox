@@ -817,6 +817,7 @@ const INVALID_TICKERS = new Set([
   'ALZO',  'LLEGO', 'SALIO', 'ENTRO', 'GANO',   'PUSO',  'PUDO',  'VINO',
   'SUPO',  'QUISO', 'TRAJO', 'MIDIO', 'PIDIO',  'MURIO', 'VIVIO',
   'EL', 'LA', 'LOS', 'LAS', 'DEL', 'AL', 'UN', 'UNA', 'SE', 'ME', 'TE', 'LE',
+  'MERCADO', 'MARCHA',
 ]);
 
 export default function StockChatScreen({ route, navigation }) {
@@ -824,14 +825,6 @@ export default function StockChatScreen({ route, navigation }) {
 
   const initialTicker = route.params?.ticker || '';
   const [currentTicker, setCurrentTicker] = useState(initialTicker);
-
-  // Safety net: if an invalid Spanish word was passed as a ticker, redirect immediately
-  useEffect(() => {
-    const raw = route.params?.ticker;
-    if (raw && INVALID_TICKERS.has(raw.toUpperCase())) {
-      navigation.replace('GeneralChat', { question: route.params?.question || raw });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [stock, setStock] = useState(null);
   const [details, setDetails] = useState(null);
@@ -1413,6 +1406,16 @@ export default function StockChatScreen({ route, navigation }) {
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
+
+  if (INVALID_TICKERS.has((currentTicker || '').toUpperCase())) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ fontSize: 16, textAlign: 'center', color: '#666' }}>
+          Para preguntas generales sobre el mercado, usa el chat principal. Busca un ticker específico como AAPL, TSLA, NVDA.
+        </Text>
+      </View>
+    );
+  }
 
   const riskInfo = stock
     ? calcRisk({ ...stock, marketCap: details?.marketCap })
