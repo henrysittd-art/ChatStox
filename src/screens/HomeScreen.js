@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, RefreshControl, SafeAreaView, Animated,
+  TextInput, RefreshControl, SafeAreaView, Animated, Alert,
   Platform, UIManager, LayoutAnimation, useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1436,14 +1436,13 @@ export default function HomeScreen({ navigation }) {
     const raw = search.trim();
     if (!raw) return;
     if (isTickerSearch(raw)) {
-      // Pure ticker input (1–5 letters, no spaces) — resolve company names too
       const ticker = extractTicker(raw) || raw.toUpperCase();
       navigation.navigate('StockChat', { ticker, question: raw });
+      setSearch('');
     } else {
-      // Phrase or question — route to general market chat
-      navigation.navigate('GeneralChat', { question: raw });
+      setSearch('');
+      Alert.alert('', 'Esta barra es para buscar tickers (ej. AAPL, TSLA). Para preguntas sobre el mercado, usa el botón de chat.');
     }
-    setSearch('');
   };
 
   const goToStock = (ticker) => navigation.navigate('StockChat', { ticker });
