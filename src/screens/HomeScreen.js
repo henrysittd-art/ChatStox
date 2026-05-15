@@ -1,3 +1,4 @@
+// CHATSTOX HomeScreen - rebuilt 2026-05-14
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
