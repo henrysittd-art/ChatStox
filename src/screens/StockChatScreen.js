@@ -811,11 +811,27 @@ const apStyles = StyleSheet.create({
 
 // ── StockChatScreen ───────────────────────────────────────────────────────────
 
+const INVALID_TICKERS = new Set([
+  'CERRO', 'MOVIO', 'ABRIO', 'SUBIO', 'BAJO',  'CAYO',  'HECHO', 'SPLIT',
+  'TENER', 'ESTAR', 'PODER', 'COMO',  'CUANDO', 'DONDE', 'CUANTO',
+  'ALZO',  'LLEGO', 'SALIO', 'ENTRO', 'GANO',   'PUSO',  'PUDO',  'VINO',
+  'SUPO',  'QUISO', 'TRAJO', 'MIDIO', 'PIDIO',  'MURIO', 'VIVIO',
+  'EL', 'LA', 'LOS', 'LAS', 'DEL', 'AL', 'UN', 'UNA', 'SE', 'ME', 'TE', 'LE',
+]);
+
 export default function StockChatScreen({ route, navigation }) {
   const { tabs, addTab, closeTab, updateTab } = useTabs();
 
   const initialTicker = route.params?.ticker || '';
   const [currentTicker, setCurrentTicker] = useState(initialTicker);
+
+  // Safety net: if an invalid Spanish word was passed as a ticker, redirect immediately
+  useEffect(() => {
+    const raw = route.params?.ticker;
+    if (raw && INVALID_TICKERS.has(raw.toUpperCase())) {
+      navigation.replace('GeneralChat', { question: route.params?.question || raw });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [stock, setStock] = useState(null);
   const [details, setDetails] = useState(null);
