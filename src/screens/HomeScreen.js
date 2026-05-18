@@ -1432,29 +1432,30 @@ export default function HomeScreen({ navigation }) {
     setWatchlistQuotes(prev => { const n = { ...prev }; delete n[ticker]; return n; });
   }, [watchlist, saveWatchlist]);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     const raw = search.trim();
     if (!raw) return;
-
-    // Pure ticker (1-5 letters, not a Spanish stopword)
-    if (isTickerSearch(raw)) {
-      const ticker = extractTicker(raw) || raw.toUpperCase();
-      navigation.navigate('StockChat', { ticker });
-      setSearch('');
-      return;
-    }
-
-    // Phrase that contains an embedded ticker (e.g. "pq SEGG esta subiendo")
-    const embeddedTicker = extractTicker(raw);
-    if (embeddedTicker && embeddedTicker.length <= 5) {
-      navigation.navigate('StockChat', { ticker: embeddedTicker, question: raw });
-      setSearch('');
-      return;
-    }
-
-    // Pure question → GeneralChat
-    navigation.navigate('GeneralChat', { question: raw });
     setSearch('');
+
+    // Spaces → definitely a question
+    if (raw.includes(' ')) {
+      navigation.navigate('GeneralChat', { question: raw });
+      return;
+    }
+
+    // 1-5 letters → ask Polygon if it's a real ticker
+    if (/^[A-Za-z]{1,5}$/.test(raw)) {
+      try {
+        const data = await fetchQuote(raw.toUpperCase());
+        if (data && data.price) {
+          navigation.navigate('StockChat', { ticker: raw.toUpperCase() });
+          return;
+        }
+      } catch (e) {}
+    }
+
+    // Polygon said no, or input was something else → GeneralChat
+    navigation.navigate('GeneralChat', { question: raw });
   };
 
   const goToStock = (ticker) => navigation.navigate('StockChat', { ticker });

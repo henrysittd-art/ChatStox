@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 // ScrollView kept for the outer page scroll
 import { LogoIcon } from '../components/ChatstoxLogo';
-import { extractTicker, isTickerSearch } from '../utils/tickerExtractor';
+import { fetchQuote } from '../services/stockService';
 import { useAuth } from '../context/AuthContext';
 import NavButtons from '../components/NavButtons';
 
@@ -88,29 +88,30 @@ export default function LandingScreen({ navigation }) {
 
   const isWide = width >= 700;
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     const raw = query.trim();
     if (!raw) return;
-
-    // Pure ticker (1-5 letters, not a Spanish stopword)
-    if (isTickerSearch(raw)) {
-      const ticker = extractTicker(raw) || raw.toUpperCase();
-      navigation.navigate('StockChat', { ticker });
-      setQuery('');
-      return;
-    }
-
-    // Phrase that contains an embedded ticker (e.g. "pq SEGG esta subiendo")
-    const embeddedTicker = extractTicker(raw);
-    if (embeddedTicker && embeddedTicker.length <= 5) {
-      navigation.navigate('StockChat', { ticker: embeddedTicker, question: raw });
-      setQuery('');
-      return;
-    }
-
-    // Pure question → GeneralChat
-    navigation.navigate('GeneralChat', { question: raw });
     setQuery('');
+
+    // Spaces → definitely a question
+    if (raw.includes(' ')) {
+      navigation.navigate('GeneralChat', { question: raw });
+      return;
+    }
+
+    // 1-5 letters → ask Polygon if it's a real ticker
+    if (/^[A-Za-z]{1,5}$/.test(raw)) {
+      try {
+        const data = await fetchQuote(raw.toUpperCase());
+        if (data && data.price) {
+          navigation.navigate('StockChat', { ticker: raw.toUpperCase() });
+          return;
+        }
+      } catch (e) {}
+    }
+
+    // Polygon said no, or input was something else → GeneralChat
+    navigation.navigate('GeneralChat', { question: raw });
   };
 
   const handleChip = (question) => {
