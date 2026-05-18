@@ -10,7 +10,7 @@ import PriceChart from '../components/PriceChart';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchQuote, fetchTickerDetails, fetchTickerNews, fetchIntradayChart, fetchExtendedData, fetchMarketIndices, fetchEarnings } from '../services/stockService';
 import { callAI, aiErrorMessage } from '../services/aiService';
-import { useTabs } from '../context/TabContext';
+import { useTabs, generateTabName } from '../context/TabContext';
 import { extractTicker, isTickerSearch } from '../utils/tickerExtractor';
 import { buildDisclaimerMessage, hasSeenDisclaimer, markDisclaimerSeen } from '../utils/disclaimer';
 import { calcRisk } from '../utils/riskLevel';
@@ -1299,6 +1299,12 @@ export default function StockChatScreen({ route, navigation }) {
     const updated = [...messages, userMsg];
     setMessages(updated);
     setThinking(true);
+
+    // On first user message, update tab title from the message content
+    const priorUserMsgs = messages.filter(m => m.role === 'user');
+    if (priorUserMsgs.length === 0) {
+      updateTab(currentTicker, { tabName: generateTabName(content) });
+    }
 
     // Save user message immediately so it persists even if AI call fails
     const updatedToSave = updated.filter(m => m.role !== 'session_divider');
