@@ -127,7 +127,10 @@ export default function AuthScreen({ navigation }) {
     try {
       const { error: e } = await supabase.auth.signInWithOtp({
         email,
-        options: { shouldCreateUser: true },
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: undefined, // forces OTP code, not magic link
+        },
       });
       if (e) throw e;
       setResendTimer(60);
