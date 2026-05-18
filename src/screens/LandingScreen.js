@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  ScrollView, SafeAreaView, useWindowDimensions, Platform, Alert,
+  ScrollView, SafeAreaView, useWindowDimensions, Platform,
 } from 'react-native';
 // ScrollView kept for the outer page scroll
 import { LogoIcon } from '../components/ChatstoxLogo';
@@ -93,12 +93,11 @@ export default function LandingScreen({ navigation }) {
     if (!raw) return;
     if (isTickerSearch(raw)) {
       const ticker = extractTicker(raw) || raw.toUpperCase();
-      setQuery('');
       navigation.navigate('StockChat', { ticker, question: raw });
     } else {
-      setQuery('');
-      Alert.alert('', 'Esta barra es para buscar tickers (ej. AAPL, TSLA). Para preguntas sobre el mercado, usa el botón de chat.');
+      navigation.navigate('GeneralChat', { question: raw });
     }
+    setQuery('');
   };
 
   const handleChip = (question) => {
