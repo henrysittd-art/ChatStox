@@ -5,17 +5,26 @@ import {
   useWindowDimensions, ActivityIndicator, ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabase';
 import { LogoIcon } from '../components/ChatstoxLogo';
-import { BACKEND_URL } from '../config/api';
 
-const API_BASE = BACKEND_URL;
+const GREEN  = '#00C853';
+const DARK   = '#1a1a1a';
+const MID    = '#4b5563';
+const SUBTLE = '#9ca3af';
+const BG     = '#ffffff';
+const FIELD  = '#f3f4f6';
+const BORDER = '#e5e7eb';
 
-// ── Google color G icon ───────────────────────────────────────────────────────
+// ── Google G icon ─────────────────────────────────────────────────────────────
 function GoogleIcon({ size = 20 }) {
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}>
-      <Text style={{ fontSize: size * 0.65, fontWeight: '700', color: '#4285F4', fontFamily: 'Georgia' }}>G</Text>
+    <View style={{
+      width: size, height: size, borderRadius: size / 2,
+      backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1, borderColor: '#dadce0',
+    }}>
+      <Text style={{ fontSize: size * 0.62, fontWeight: '700', color: '#4285F4', fontFamily: 'Georgia' }}>G</Text>
     </View>
   );
 }
@@ -23,27 +32,19 @@ function GoogleIcon({ size = 20 }) {
 // ── Animated checkmark ────────────────────────────────────────────────────────
 function Checkmark() {
   const scale = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.sequence([
-      Animated.delay(200),
-      Animated.parallel([
-        Animated.spring(scale, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      ]),
-    ]).start();
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }).start();
   }, []);
   return (
-    <Animated.View style={[styles.checkCircle, { transform: [{ scale }], opacity }]}>
+    <Animated.View style={[styles.checkCircle, { transform: [{ scale }] }]}>
       <Text style={styles.checkMark}>✓</Text>
     </Animated.View>
   );
 }
 
-// ── OTP digit box ─────────────────────────────────────────────────────────────
+// ── OTP digit boxes ───────────────────────────────────────────────────────────
 function OTPInput({ length = 6, value, onChange }) {
   const inputs = useRef([]);
-
   const handleChange = (text, idx) => {
     const digit = text.replace(/\D/g, '').slice(-1);
     const arr = value.split('');
@@ -52,7 +53,6 @@ function OTPInput({ length = 6, value, onChange }) {
     onChange(next);
     if (digit && idx < length - 1) inputs.current[idx + 1]?.focus();
   };
-
   const handleKeyPress = (e, idx) => {
     if (e.nativeEvent.key === 'Backspace' && !value[idx] && idx > 0) {
       inputs.current[idx - 1]?.focus();
@@ -61,7 +61,6 @@ function OTPInput({ length = 6, value, onChange }) {
       onChange(arr.join(''));
     }
   };
-
   return (
     <View style={styles.otpRow}>
       {Array.from({ length }).map((_, i) => (
@@ -83,35 +82,41 @@ function OTPInput({ length = 6, value, onChange }) {
 }
 
 // ── Main AuthScreen ───────────────────────────────────────────────────────────
-export default function AuthScreen({ navigation, route }) {
-  const { signIn } = useAuth();
+export default function AuthScreen({ navigation }) {
   const { width } = useWindowDimensions();
   const isWide = width >= 600;
+  const cardWidth = isWide ? 420 : '100%';
 
-  const initialState = route?.params?.initialState || 'signup_options';
-  const [screen, setScreen] = useState(initialState);
-  const [email, setEmail]   = useState('');
-  const [otp, setOtp]       = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName]   = useState('');
+  const [tab, setTab]               = useState('signin');
+  const [screen, setScreen]         = useState('main');   // 'main' | 'otp' | 'profile' | 'complete'
+  const [email, setEmail]           = useState('');
+  const [otp, setOtp]               = useState('');
+  const [firstName, setFirstName]   = useState('');
+  const [lastName, setLastName]     = useState('');
   const [traderType, setTraderType] = useState('');
-  const [error, setError]   = useState('');
-  const [loading, setLoading] = useState(false);
+  const [error, setError]           = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
 
-  // Auto-navigate from complete → Main after 2s
+  // Countdown for resend button
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const id = setTimeout(() => setResendTimer(t => t - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendTimer]);
+
+  // Auto-submit when all 6 digits filled
+  useEffect(() => {
+    if (otp.length === 6 && screen === 'otp') handleVerify();
+  }, [otp]);
+
+  // Navigate to Main after completion
   useEffect(() => {
     if (screen === 'complete') {
       const t = setTimeout(() => navigation.replace('Main'), 2000);
       return () => clearTimeout(t);
     }
   }, [screen]);
-
-  // Auto-submit OTP when all 6 digits entered
-  useEffect(() => {
-    if (otp.length === 6 && screen === 'verification') {
-      handleVerifyOtp();
-    }
-  }, [otp]);
 
   const handleSendOtp = async () => {
     setError('');
@@ -120,132 +125,134 @@ export default function AuthScreen({ navigation, route }) {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+      const { error: e } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to send code');
-      setScreen('verification');
+      if (e) throw e;
+      setResendTimer(60);
+      setScreen('otp');
     } catch (e) {
-      setError(e.message);
+      setError(e.message || 'Failed to send code. Try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async () => {
+  const handleVerify = async () => {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: otp }),
+      const { data, error: e } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'email',
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Invalid code');
-      setScreen('profile_setup');
+      if (e) throw e;
+      const meta = data?.user?.user_metadata || {};
+      if (!meta.firstName) {
+        setScreen('profile');
+      } else {
+        await AsyncStorage.setItem('userProfile', JSON.stringify({ traderType: meta.traderType || 'general' }));
+        setScreen('complete');
+      }
     } catch (e) {
-      setError(e.message);
+      setError(e.message || 'Invalid code. Try again.');
       setOtp('');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCompleteProfile = async () => {
+  const handleSaveProfile = async () => {
     setError('');
     if (!firstName.trim()) return setError('Please enter your first name.');
     if (!traderType) return setError('Please select your trader type.');
     setLoading(true);
     try {
-      const userData = {
-        email,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        traderType,
-        authMethod: 'email',
-        createdAt: new Date().toISOString(),
-      };
-      await signIn(userData);
-      // Keep existing profile in AsyncStorage for onboarding compatibility
-      const existing = await AsyncStorage.getItem('userProfile');
-      if (!existing) {
-        await AsyncStorage.setItem('userProfile', JSON.stringify({ traderType }));
-      }
+      const { error: e } = await supabase.auth.updateUser({
+        data: { firstName: firstName.trim(), lastName: lastName.trim(), traderType },
+      });
+      if (e) throw e;
+      await AsyncStorage.setItem('userProfile', JSON.stringify({ traderType }));
       setScreen('complete');
     } catch (e) {
-      setError(e.message);
+      setError(e.message || 'Failed to save profile.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    // Firebase Google sign-in — placeholder for web implementation
-    setError('Google sign-in requires Firebase configuration. Use email sign-in for now.');
+  const handleGoogle = async () => {
+    setError('');
+    try {
+      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+      const { error: e } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo },
+      });
+      if (e) throw e;
+    } catch (e) {
+      setError(e.message || 'Google sign-in failed. Use email instead.');
+    }
   };
 
-  const cardWidth = isWide ? 420 : '100%';
-
-  // ── signup_options ────────────────────────────────────────────────────────
-  if (screen === 'signup_options') {
-    return (
-      <SafeAreaView style={styles.root}>
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={[styles.card, { width: cardWidth }]}>
-            <View style={styles.logoRow}>
-              <LogoIcon size={36} />
-              <Text style={styles.brand}>ChatStox</Text>
-            </View>
-            <Text style={styles.title}>Create your account</Text>
-            <Text style={styles.subtitle}>Sign up to save your chats and personalize your experience.</Text>
-
-            <TouchableOpacity style={styles.primaryBtn} onPress={() => setScreen('email_input')}>
-              <Text style={styles.primaryBtnText}>Continue with Email</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.skipBtn} onPress={() => navigation.replace('Main')}>
-              <Text style={styles.skipText}>Skip for now</Text>
-            </TouchableOpacity>
-
-            <View style={styles.signinRow}>
-              <Text style={styles.signinLabel}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => setScreen('email_input')}>
-                <Text style={styles.signinLink}>Sign in</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  // ── email_input ───────────────────────────────────────────────────────────
-  if (screen === 'email_input') {
+  // ── Main screen ──────────────────────────────────────────────────────────
+  if (screen === 'main') {
     return (
       <SafeAreaView style={styles.root}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={styles.scroll}>
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <View style={[styles.card, { width: cardWidth }]}>
-              <TouchableOpacity style={styles.backBtn} onPress={() => setScreen('signup_options')}>
-                <Text style={styles.backText}>← Back</Text>
-              </TouchableOpacity>
 
               <View style={styles.logoRow}>
-                <LogoIcon size={36} />
+                <LogoIcon size={42} />
                 <Text style={styles.brand}>ChatStox</Text>
               </View>
 
-              <Text style={styles.title}>Enter your email</Text>
-              <Text style={styles.subtitle}>We'll send you a 6-digit verification code.</Text>
+              {/* Sign In / Sign Up tabs */}
+              <View style={styles.tabs}>
+                {[
+                  { key: 'signin', label: 'Sign In' },
+                  { key: 'signup', label: 'Sign Up' },
+                ].map(t => (
+                  <TouchableOpacity
+                    key={t.key}
+                    style={[styles.tab, tab === t.key && styles.tabActive]}
+                    onPress={() => { setTab(t.key); setError(''); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>
+                      {t.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.title}>
+                {tab === 'signin' ? 'Welcome back' : 'Create your account'}
+              </Text>
+              <Text style={styles.subtitle}>
+                {tab === 'signin'
+                  ? 'Sign in to access your personalized market analysis.'
+                  : 'Join ChatStox for AI-powered trading insights.'}
+              </Text>
+
+              <TouchableOpacity style={styles.googleBtn} onPress={handleGoogle} activeOpacity={0.85}>
+                <GoogleIcon size={20} />
+                <Text style={styles.googleBtnText}>Continue with Google</Text>
+              </TouchableOpacity>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
               <TextInput
-                style={styles.textInput}
-                placeholder="your@email.com"
-                placeholderTextColor="#8a9bb5"
+                style={styles.input}
+                placeholder="Email address"
+                placeholderTextColor={SUBTLE}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -255,18 +262,24 @@ export default function AuthScreen({ navigation, route }) {
                 returnKeyType="send"
               />
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? <Text style={styles.error}>{error}</Text> : null}
 
               <TouchableOpacity
                 style={[styles.primaryBtn, loading && styles.btnDisabled]}
                 onPress={handleSendOtp}
                 disabled={loading}
+                activeOpacity={0.85}
               >
                 {loading
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.primaryBtnText}>Send verification code</Text>
+                  : <Text style={styles.primaryBtnText}>Continue with Email</Text>
                 }
               </TouchableOpacity>
+
+              <TouchableOpacity style={styles.skipBtn} onPress={() => navigation.navigate('Main')} activeOpacity={0.7}>
+                <Text style={styles.skipText}>Continue without account</Text>
+              </TouchableOpacity>
+
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -274,37 +287,46 @@ export default function AuthScreen({ navigation, route }) {
     );
   }
 
-  // ── verification ──────────────────────────────────────────────────────────
-  if (screen === 'verification') {
+  // ── OTP screen ─────────────────────────────────────────────────────────────
+  if (screen === 'otp') {
     return (
       <SafeAreaView style={styles.root}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={styles.scroll}>
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <View style={[styles.card, { width: cardWidth }]}>
-              <TouchableOpacity style={styles.backBtn} onPress={() => { setScreen('email_input'); setOtp(''); setError(''); }}>
-                <Text style={styles.backText}>← Back</Text>
+
+              <TouchableOpacity onPress={() => { setScreen('main'); setOtp(''); setError(''); }} activeOpacity={0.7}>
+                <Text style={styles.back}>← Back</Text>
               </TouchableOpacity>
 
-              <View style={styles.logoRow}>
-                <LogoIcon size={36} />
+              <View style={[styles.logoRow, { marginTop: 24 }]}>
+                <LogoIcon size={42} />
                 <Text style={styles.brand}>ChatStox</Text>
               </View>
 
               <Text style={styles.title}>Check your email</Text>
               <Text style={styles.subtitle}>
-                We sent a 6-digit code to{'\n'}
-                <Text style={styles.emailHighlight}>{email}</Text>
+                {'We sent a 6-digit code to\n'}
+                <Text style={styles.emailHL}>{email}</Text>
               </Text>
 
               <OTPInput length={6} value={otp} onChange={setOtp} />
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {loading && <ActivityIndicator color={GREEN} style={{ marginTop: 8 }} />}
 
-              {loading && <ActivityIndicator color="#1a3a5c" style={{ marginTop: 16 }} />}
-
-              <TouchableOpacity style={styles.resendBtn} onPress={handleSendOtp}>
-                <Text style={styles.resendText}>Didn't get a code? Resend</Text>
+              <TouchableOpacity
+                onPress={resendTimer > 0 ? undefined : handleSendOtp}
+                style={styles.resendBtn}
+                activeOpacity={resendTimer > 0 ? 1 : 0.7}
+              >
+                <Text style={[styles.resendText, resendTimer > 0 && styles.resendDisabled]}>
+                  {resendTimer > 0
+                    ? `Resend code in ${resendTimer}s`
+                    : "Didn't get a code? Resend"}
+                </Text>
               </TouchableOpacity>
+
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -312,77 +334,80 @@ export default function AuthScreen({ navigation, route }) {
     );
   }
 
-  // ── profile_setup ─────────────────────────────────────────────────────────
-  if (screen === 'profile_setup') {
+  // ── Profile setup ─────────────────────────────────────────────────────────
+  if (screen === 'profile') {
     const types = [
-      { key: 'day_trader',    label: 'Day Trader',    desc: 'I trade intraday' },
-      { key: 'swing_trader',  label: 'Swing Trader',  desc: '2–10 day holds' },
-      { key: 'investor',      label: 'Investor',      desc: 'Long-term holds' },
-      { key: 'options',       label: 'Options Trader', desc: 'Calls & puts' },
-      { key: 'beginner',      label: 'Learning',      desc: 'Still learning' },
+      { key: 'day_trader',   label: 'Day Trader',   desc: 'I trade intraday' },
+      { key: 'swing_trader', label: 'Swing Trader', desc: '2–10 day holds' },
+      { key: 'investor',     label: 'Investor',     desc: 'Long-term holds' },
+      { key: 'options',      label: 'Options',      desc: 'Calls & puts' },
+      { key: 'beginner',     label: 'Learning',     desc: 'Still learning' },
     ];
     return (
       <SafeAreaView style={styles.root}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={styles.scroll}>
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <View style={[styles.card, { width: cardWidth }]}>
+
               <View style={styles.logoRow}>
-                <LogoIcon size={36} />
+                <LogoIcon size={42} />
                 <Text style={styles.brand}>ChatStox</Text>
               </View>
-
-              <Text style={styles.title}>Set up your profile</Text>
+              <Text style={styles.title}>One last step</Text>
               <Text style={styles.subtitle}>Help us personalize your AI analysis.</Text>
 
               <View style={styles.nameRow}>
                 <TextInput
-                  style={[styles.textInput, styles.halfInput]}
+                  style={[styles.input, styles.halfInput]}
                   placeholder="First name"
-                  placeholderTextColor="#8a9bb5"
+                  placeholderTextColor={SUBTLE}
                   value={firstName}
                   onChangeText={setFirstName}
                   autoCapitalize="words"
                 />
                 <TextInput
-                  style={[styles.textInput, styles.halfInput]}
-                  placeholder="Last name (optional)"
-                  placeholderTextColor="#8a9bb5"
+                  style={[styles.input, styles.halfInput]}
+                  placeholder="Last name"
+                  placeholderTextColor={SUBTLE}
                   value={lastName}
                   onChangeText={setLastName}
                   autoCapitalize="words"
                 />
               </View>
 
-              <Text style={styles.fieldLabel}>Trader type</Text>
+              <Text style={styles.fieldLabel}>I am a…</Text>
               <View style={styles.typeGrid}>
                 {types.map(t => (
                   <TouchableOpacity
                     key={t.key}
                     style={[styles.typeChip, traderType === t.key && styles.typeChipActive]}
                     onPress={() => setTraderType(t.key)}
+                    activeOpacity={0.75}
                   >
-                    <Text style={[styles.typeChipLabel, traderType === t.key && styles.typeChipLabelActive]}>
+                    <Text style={[styles.chipLabel, traderType === t.key && styles.chipLabelActive]}>
                       {t.label}
                     </Text>
-                    <Text style={[styles.typeChipDesc, traderType === t.key && styles.typeChipDescActive]}>
+                    <Text style={[styles.chipDesc, traderType === t.key && styles.chipDescActive]}>
                       {t.desc}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? <Text style={styles.error}>{error}</Text> : null}
 
               <TouchableOpacity
                 style={[styles.primaryBtn, loading && styles.btnDisabled]}
-                onPress={handleCompleteProfile}
+                onPress={handleSaveProfile}
                 disabled={loading}
+                activeOpacity={0.85}
               >
                 {loading
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.primaryBtnText}>Complete setup</Text>
+                  : <Text style={styles.primaryBtnText}>Get started</Text>
                 }
               </TouchableOpacity>
+
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -390,15 +415,17 @@ export default function AuthScreen({ navigation, route }) {
     );
   }
 
-  // ── complete ──────────────────────────────────────────────────────────────
+  // ── Complete ───────────────────────────────────────────────────────────────
   if (screen === 'complete') {
     return (
       <SafeAreaView style={styles.root}>
         <View style={styles.completeWrap}>
           <Checkmark />
-          <Text style={styles.completeTitle}>Welcome, {firstName}!</Text>
-          <Text style={styles.completeSubtitle}>Your account is ready. Taking you in…</Text>
-          <ActivityIndicator color="#1a3a5c" style={{ marginTop: 24 }} />
+          <Text style={styles.title}>
+            {firstName ? `Welcome, ${firstName}!` : "You're in!"}
+          </Text>
+          <Text style={styles.subtitle}>Taking you to your dashboard…</Text>
+          <ActivityIndicator color={GREEN} />
         </View>
       </SafeAreaView>
     );
@@ -411,26 +438,30 @@ export default function AuthScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f0f4f8',
+    backgroundColor: BG,
   },
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 48,
     paddingHorizontal: 20,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
+    backgroundColor: BG,
+    borderRadius: 24,
     padding: 32,
-    shadowColor: '#0a1628',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 8,
     maxWidth: 420,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 16,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
+
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -440,43 +471,85 @@ const styles = StyleSheet.create({
   },
   brand: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#0a1628',
+    fontWeight: '800',
+    color: DARK,
     letterSpacing: -0.5,
   },
+
+  tabs: {
+    flexDirection: 'row',
+    backgroundColor: FIELD,
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 24,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  tabActive: {
+    backgroundColor: BG,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: SUBTLE,
+  },
+  tabTextActive: {
+    color: DARK,
+    fontWeight: '700',
+  },
+
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#0a1628',
+    color: DARK,
     textAlign: 'center',
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 14,
-    color: '#5a7a9a',
+    color: MID,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 21,
     marginBottom: 28,
   },
-  emailHighlight: {
-    color: '#1a3a5c',
+  emailHL: {
+    color: DARK,
     fontWeight: '600',
   },
+
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    backgroundColor: '#4285F4',
+    gap: 10,
+    backgroundColor: BG,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 13,
+    borderWidth: 1.5,
+    borderColor: BORDER,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   googleBtnText: {
-    color: '#fff',
+    color: DARK,
     fontSize: 15,
     fontWeight: '600',
   },
+
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -486,122 +559,121 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#e8edf2',
+    backgroundColor: BORDER,
   },
   dividerText: {
-    color: '#8a9bb5',
+    color: SUBTLE,
     fontSize: 13,
   },
-  primaryBtn: {
-    backgroundColor: '#1a3a5c',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  primaryBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  btnDisabled: {
-    opacity: 0.6,
-  },
-  skipBtn: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  skipText: {
-    color: '#8a9bb5',
-    fontSize: 14,
-  },
-  signinRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  signinLabel: {
-    color: '#5a7a9a',
-    fontSize: 13,
-  },
-  signinLink: {
-    color: '#1a3a5c',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  backBtn: {
-    alignSelf: 'flex-start',
-    marginBottom: 20,
-  },
-  backText: {
-    color: '#5a7a9a',
-    fontSize: 14,
-  },
-  textInput: {
-    backgroundColor: '#f5f8fa',
-    borderWidth: 1,
-    borderColor: '#d8e2ec',
+
+  input: {
+    backgroundColor: FIELD,
+    borderWidth: 1.5,
+    borderColor: BORDER,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#0a1628',
+    color: DARK,
     marginBottom: 16,
+    outlineStyle: 'none',
   },
-  errorText: {
-    color: '#e53935',
+
+  primaryBtn: {
+    backgroundColor: GREEN,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  primaryBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+
+  skipBtn: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  skipText: {
+    color: SUBTLE,
+    fontSize: 13,
+  },
+
+  back: {
+    color: MID,
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+
+  error: {
+    color: '#ef4444',
     fontSize: 13,
     textAlign: 'center',
-    marginTop: 8,
     marginBottom: 8,
   },
+
   otpRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 10,
-    marginBottom: 20,
-    marginTop: 8,
+    marginVertical: 20,
   },
   otpBox: {
     width: 46,
     height: 56,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#d8e2ec',
-    backgroundColor: '#f5f8fa',
+    borderColor: BORDER,
+    backgroundColor: FIELD,
     fontSize: 22,
     fontWeight: '700',
-    color: '#0a1628',
+    color: DARK,
     textAlign: 'center',
   },
   otpBoxFilled: {
-    borderColor: '#1a3a5c',
-    backgroundColor: '#eef3f8',
+    borderColor: GREEN,
+    backgroundColor: '#f0fdf4',
   },
   resendBtn: {
     alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 8,
+    paddingVertical: 14,
   },
   resendText: {
-    color: '#1a3a5c',
+    color: GREEN,
     fontSize: 14,
     fontWeight: '500',
   },
+  resendDisabled: {
+    color: SUBTLE,
+  },
+
   nameRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   halfInput: {
     flex: 1,
   },
   fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0a1628',
+    fontSize: 12,
+    fontWeight: '700',
+    color: MID,
+    marginTop: 4,
     marginBottom: 12,
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   typeGrid: {
@@ -612,59 +684,58 @@ const styles = StyleSheet.create({
   },
   typeChip: {
     borderWidth: 1.5,
-    borderColor: '#d8e2ec',
+    borderColor: BORDER,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     minWidth: '45%',
     flex: 1,
+    backgroundColor: FIELD,
   },
   typeChipActive: {
-    borderColor: '#1a3a5c',
-    backgroundColor: '#eef3f8',
+    borderColor: GREEN,
+    backgroundColor: '#f0fdf4',
   },
-  typeChipLabel: {
+  chipLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0a1628',
+    color: DARK,
     marginBottom: 2,
   },
-  typeChipLabelActive: {
-    color: '#1a3a5c',
+  chipLabelActive: {
+    color: '#16a34a',
   },
-  typeChipDesc: {
+  chipDesc: {
     fontSize: 11,
-    color: '#8a9bb5',
+    color: SUBTLE,
   },
-  typeChipDescActive: {
-    color: '#4a6a8a',
+  chipDescActive: {
+    color: '#4ade80',
   },
+
   completeWrap: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 16,
+    paddingHorizontal: 32,
   },
   checkCircle: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#1a3a5c',
+    backgroundColor: GREEN,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
   },
   checkMark: {
-    fontSize: 40,
-    color: '#f5a623',
+    fontSize: 38,
+    color: '#fff',
     lineHeight: 44,
-  },
-  completeTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0a1628',
-  },
-  completeSubtitle: {
-    fontSize: 15,
-    color: '#5a7a9a',
   },
 });

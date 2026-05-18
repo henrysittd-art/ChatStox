@@ -1,39 +1,54 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../services/supabase';
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEY = 'chatstox_user';
+// Maps a Supabase user object to the shape the app expects
+function mapUser(supabaseUser) {
+  if (!supabaseUser) return null;
+  const meta = supabaseUser.user_metadata || {};
+  return {
+    id:          supabaseUser.id,
+    email:       supabaseUser.email,
+    firstName:   meta.firstName  || '',
+    lastName:    meta.lastName   || '',
+    traderType:  meta.traderType || '',
+    authMethod:  meta.authMethod || 'email',
+  };
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null);  // { email, firstName, lastName, traderType, authMethod }
+  const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then(raw => { if (raw) setUser(JSON.parse(raw)); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    // Restore session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(mapUser(session?.user ?? null));
+      setLoading(false);
+    });
+
+    // Listen for sign-in / sign-out / token refresh
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(mapUser(session?.user ?? null));
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (userData) => {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-    setUser(userData);
-  };
-
   const signOut = async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    setUser(null);
+    await supabase.auth.signOut();
+    // user state is cleared automatically via onAuthStateChange
   };
 
   const updateProfile = async (updates) => {
-    const next = { ...user, ...updates };
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    setUser(next);
+    const { data, error } = await supabase.auth.updateUser({ data: updates });
+    if (error) throw error;
+    setUser(mapUser(data.user));
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut, updateProfile }}>
+    <AuthContext.Provider value={{ user, loading, signOut, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
