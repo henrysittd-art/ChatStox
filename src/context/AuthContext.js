@@ -88,9 +88,12 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = mapUser(session?.user ?? null);
+      // Set profileLoading BEFORE setUser so both land in the same render —
+      // prevents App.js from seeing user!=null + profile==null and flashing Onboarding.
+      if (u?.id) setProfileLoading(true);
       setUser(u);
       if (u?.id) loadProfile(u.id);
-      else setProfile(null);
+      else { setProfile(null); setProfileLoading(false); }
     });
 
     return () => subscription.unsubscribe();
