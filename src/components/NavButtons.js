@@ -1,11 +1,14 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useLanguage } from '../context/LanguageContext';
 
 const NavButtons = ({ currentScreen, navigation }) => {
+  const { lang, setLang } = useLanguage();
+
   const buttons = [
-    { label: 'Pipeline', screen: 'Home' },
+    { label: 'Pipeline',    screen: 'Home' },
     { label: 'Market Chat', screen: 'GeneralChat' },
-    { label: 'Stock Chat', screen: 'StockChat' },
+    { label: 'Stock Chat',  screen: 'StockChat' },
   ];
 
   return (
@@ -24,6 +27,16 @@ const NavButtons = ({ currentScreen, navigation }) => {
           </TouchableOpacity>
         );
       })}
+
+      {/* Language toggle */}
+      <TouchableOpacity
+        style={styles.langBtn}
+        onPress={() => setLang(lang === 'en' ? 'es' : 'en')}
+        activeOpacity={0.7}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Text style={styles.langText}>🌐 {lang.toUpperCase()}</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -53,6 +66,19 @@ const styles = StyleSheet.create({
   },
   activeText: {
     color: 'white',
+  },
+  langBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#f9fafb',
+  },
+  langText: {
+    fontSize: 11,
+    color: '#374151',
+    fontWeight: '600',
   },
 });
 

@@ -956,7 +956,45 @@ export async function testAIConnection() {
 export async function callAI({ stock, question, history = [], profile, isGeneral, isAutoAnalysis, details, news, gainers, losers, volume, extendedData, marketIndices, earnings, onChunk }) {
   const systemContent = buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings });
 
-  const profileContext = profile ? `\n[User profile: ${profile.traderType || 'general'} trader, ${profile.riskTolerance || 'moderate'} risk tolerance. Preferred sector: ${profile.sectors || 'general market'}. When making specific recommendations, lead with opportunities in the user's preferred sector first, then mention others if relevant.]` : '';
+  // ── User profile personalization block ───────────────────────────────────
+  let profileContext = '';
+  if (profile) {
+    const traderType      = profile.traderType    || 'general';
+    const sectors         = profile.sectors        || 'all sectors';
+    const pennyPref       = profile.likesPennyStocks === true  ? 'Yes — include momentum/penny plays when relevant'
+                          : profile.likesPennyStocks === false ? 'No — focus on established companies'
+                          : 'not specified';
+    const risk            = profile.riskTolerance  || 'moderate';
+    const capital         = (profile.capitalRange  || 'not specified').replace(/_/g, ' ');
+    const langLabel       = profile.language === 'es' ? 'Spanish' : 'English';
+    const langOverride    = profile.language === 'es'
+      ? 'LANGUAGE OVERRIDE: ALWAYS respond in Spanish (español) — this overrides the auto-detect rule.'
+      : 'LANGUAGE OVERRIDE: ALWAYS respond in English — this overrides the auto-detect rule.';
+    const riskRule        = risk === 'high'   ? 'User accepts high risk — include aggressive setups and momentum plays freely.'
+                          : risk === 'low'    ? 'User prefers low risk — focus on stable, large-cap, dividend-paying stocks. Warn on penny stocks.'
+                          : 'Balance risk/reward appropriately for a moderate-risk trader.';
+    const pennyRule       = profile.likesPennyStocks === false
+      ? 'NEVER recommend penny stocks or sub-$5 stocks to this user unless explicitly asked.'
+      : profile.likesPennyStocks === true
+        ? 'User enjoys momentum/penny plays — proactively mention high-RVOL, high-% movers from the gainers list.'
+        : '';
+
+    profileContext = `
+
+=== USER PROFILE (personalize ALL responses based on this) ===
+• Trader type    : ${traderType}
+• Sectors        : ${sectors.replace(/,/g, ', ')}
+• Penny stocks   : ${pennyPref}
+• Risk tolerance : ${risk}
+• Capital        : ${capital}
+• Language       : ${langLabel}
+${langOverride}
+PERSONALIZATION RULES:
+- Tailor every recommendation to a ${traderType} mindset and timeframe.
+- Lead with ${sectors !== 'all sectors' ? sectors.split(',')[0].trim() : 'broad market'}-focused opportunities when equally relevant options exist.
+- ${riskRule}
+${pennyRule ? `- ${pennyRule}` : ''}`;
+  }
 
   let fullSystem = systemContent + profileContext;
   console.log(`[CHATSTOX AI] System prompt: ${fullSystem.length} chars`);
