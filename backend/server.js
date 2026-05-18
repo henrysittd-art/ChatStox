@@ -442,19 +442,22 @@ async function fetchTickerSnapshot(ticker) {
         .then(r => r.ok ? r.json() : null)
         .catch(() => null);
     };
-    const [snapRes, refRes, splitsRes, divsRes, newsRes] = await Promise.allSettled([
+    const [snapRes, refRes, splitsRes, divsRes, newsRes, v3Res] = await Promise.allSettled([
       safeFetch(`${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/${enc}?apiKey=${POLYGON_KEY}`),
       safeFetch(`${POLYGON_BASE}/v3/reference/tickers/${enc}?apiKey=${POLYGON_KEY}`),
       safeFetch(`${POLYGON_BASE}/v3/reference/splits?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
       safeFetch(`${POLYGON_BASE}/v3/reference/dividends?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
       safeFetch(`${POLYGON_BASE}/v2/reference/news?ticker=${enc}&limit=5&apiKey=${POLYGON_KEY}`),
+      safeFetch(`${POLYGON_BASE}/v3/snapshot?ticker.any_of=${enc}&apiKey=${POLYGON_KEY}`),
     ]);
-    const snap   = (snapRes.status   === 'fulfilled' ? snapRes.value   : null)?.ticker;
+    const snap   = (snapRes.status === 'fulfilled' ? snapRes.value : null)?.ticker;
     if (!snap) return null;
     const ref    = (refRes.status    === 'fulfilled' ? refRes.value    : null)?.results;
     const splits = (splitsRes.status === 'fulfilled' ? splitsRes.value : null)?.results ?? [];
     const divs   = (divsRes.status   === 'fulfilled' ? divsRes.value   : null)?.results ?? [];
     const news   = (newsRes.status   === 'fulfilled' ? newsRes.value   : null)?.results ?? [];
+    const v3res  = (v3Res.status     === 'fulfilled' ? v3Res.value     : null)?.results?.[0] ?? {};
+    const marketStatus = v3res.market_status ?? null;
     const price     = snap.lastTrade?.p ?? snap.day?.c ?? snap.prevDay?.c ?? 0;
     const changePct = snap.todaysChangePerc ?? 0;
     const volume    = snap.day?.v ?? 0;
@@ -466,16 +469,17 @@ async function fetchTickerSnapshot(ticker) {
     }));
     return {
       ticker,
-      price:       Number(price),
-      changePct:   Number(changePct),
-      volume:      Number(volume),
-      sector:      sectorFromRef(ref),
-      description: ref?.description ? ref.description.slice(0, 200) : null,
-      employees:   ref?.total_employees ?? null,
-      listDate:    ref?.list_date ?? null,
-      splits:      splits.map(s => `${s.split_to}-for-${s.split_from}${s.split_to < s.split_from ? ' reverse split' : ''} on ${s.execution_date}`),
-      divs:        divs.map(d => `$${Number(d.cash_amount).toFixed(4)} ex-date ${d.ex_dividend_date}`),
-      news:        news.map(n => `[${(n.published_utc || '').slice(0, 10)}] ${n.title}`),
+      price:        Number(price),
+      changePct:    Number(changePct),
+      volume:       Number(volume),
+      marketStatus: marketStatus,
+      sector:       sectorFromRef(ref),
+      description:  ref?.description ? ref.description.slice(0, 200) : null,
+      employees:    ref?.total_employees ?? null,
+      listDate:     ref?.list_date ?? null,
+      splits:       splits.map(s => `${s.split_to}-for-${s.split_from}${s.split_to < s.split_from ? ' reverse split' : ''} on ${s.execution_date}`),
+      divs:         divs.map(d => `$${Number(d.cash_amount).toFixed(4)} ex-date ${d.ex_dividend_date}`),
+      news:         news.map(n => `[${(n.published_utc || '').slice(0, 10)}] ${n.title}`),
     };
   } catch {
     return null;
@@ -538,10 +542,11 @@ app.post('/api/chat', async (req, res) => {
       const r = results[i];
       const ticker = mentionedTickers[i];
       if (r.status === 'fulfilled' && r.value) {
-        const { ticker: t, price, changePct, volume, sector, description, employees, listDate, splits, divs, news } = r.value;
+        const { ticker: t, price, changePct, volume, marketStatus, sector, description, employees, listDate, splits, divs, news } = r.value;
         const sign = changePct >= 0 ? '+' : '';
         const block = [];
         block.push(`REAL-TIME DATA for ${t}:`);
+        if (marketStatus) block.push(`Market status: ${marketStatus}`);
         let priceLine = `Price: $${price.toFixed(price < 1 ? 4 : 2)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`;
         if (sector) priceLine += `, Sector: ${sector}`;
         block.push(priceLine);

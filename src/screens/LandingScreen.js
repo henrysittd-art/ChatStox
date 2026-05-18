@@ -91,12 +91,25 @@ export default function LandingScreen({ navigation }) {
   const handleSearch = () => {
     const raw = query.trim();
     if (!raw) return;
+
+    // Pure ticker (1-5 letters, not a Spanish stopword)
     if (isTickerSearch(raw)) {
       const ticker = extractTicker(raw) || raw.toUpperCase();
-      navigation.navigate('StockChat', { ticker, question: raw });
-    } else {
-      navigation.navigate('GeneralChat', { question: raw });
+      navigation.navigate('StockChat', { ticker });
+      setQuery('');
+      return;
     }
+
+    // Phrase that contains an embedded ticker (e.g. "pq SEGG esta subiendo")
+    const embeddedTicker = extractTicker(raw);
+    if (embeddedTicker && embeddedTicker.length <= 5) {
+      navigation.navigate('StockChat', { ticker: embeddedTicker, question: raw });
+      setQuery('');
+      return;
+    }
+
+    // Pure question → GeneralChat
+    navigation.navigate('GeneralChat', { question: raw });
     setQuery('');
   };
 

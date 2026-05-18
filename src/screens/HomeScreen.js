@@ -1435,12 +1435,25 @@ export default function HomeScreen({ navigation }) {
   const handleSearch = () => {
     const raw = search.trim();
     if (!raw) return;
+
+    // Pure ticker (1-5 letters, not a Spanish stopword)
     if (isTickerSearch(raw)) {
       const ticker = extractTicker(raw) || raw.toUpperCase();
-      navigation.navigate('StockChat', { ticker, question: raw });
-    } else {
-      navigation.navigate('GeneralChat', { question: raw });
+      navigation.navigate('StockChat', { ticker });
+      setSearch('');
+      return;
     }
+
+    // Phrase that contains an embedded ticker (e.g. "pq SEGG esta subiendo")
+    const embeddedTicker = extractTicker(raw);
+    if (embeddedTicker && embeddedTicker.length <= 5) {
+      navigation.navigate('StockChat', { ticker: embeddedTicker, question: raw });
+      setSearch('');
+      return;
+    }
+
+    // Pure question → GeneralChat
+    navigation.navigate('GeneralChat', { question: raw });
     setSearch('');
   };
 

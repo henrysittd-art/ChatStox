@@ -351,6 +351,7 @@ Example of correct follow-up: "Es principalmente momentum — el +27.56% con ese
   - Si la respuesta es sí o no, di sí o no primero, luego explica
   - Máximo 1 advertencia de riesgo por conversación, no en cada mensaje
 • DATOS INVENTADOS: NUNCA inventes precios, porcentajes o volúmenes. Si no tienes datos reales de Polygon para un ticker específico, di explícitamente que no tienes ese dato en tiempo real. Solo menciona precios que estén en el bloque REAL-TIME DATA.
+• ESTADO DEL MERCADO: Usa el campo "Market status" del bloque REAL-TIME DATA para determinar si el mercado está abierto o cerrado AHORA MISMO. Si es "closed", di "el mercado cerró hoy" con los datos de cierre de SPY/QQQ. Si es "open", di "el mercado está abierto ahora mismo" con los datos actuales. Si es "extended_hours", indica que está en horario extendido.
 • DETECCIÓN DE TICKERS: Si el usuario menciona un ticker diferente al stock actual de la conversación, cambia el enfoque inmediatamente a ese nuevo ticker usando los datos inyectados. No sigas hablando del stock anterior. El usuario está preguntando sobre el nuevo ticker.`;
 
   // ── GENERAL CHAT (no specific stock loaded) ────────────────────────────────
@@ -394,12 +395,8 @@ Example of correct follow-up: "Es principalmente momentum — el +27.56% con ese
 
     const gainersBlock = (gainers || []).slice(0, 5).map(fmtRow).join('\n') || 'No data';
     const losersBlock  = (losers  || []).slice(0, 5).map(fmtRow).join('\n') || 'No data';
-    const volumeBlock  = (volume  || []).slice(0, 5).map(fmtRow).join('\n') || 'No data';
-    const pennyBlock   = pennyLike.length > 0
-      ? pennyLike.slice(0, 5).map(fmtRow).join('\n')
-      : 'No high-momentum movers in live data right now.';
 
-    // Sector rotation detection from top 30 gainers
+    // Sector rotation detection from top 10 gainers (reduced from 30 to save prompt space)
     const _sectorOf = (ticker, name) => {
       const n = (name || '').toLowerCase();
       const t = (ticker || '').toUpperCase();
@@ -421,7 +418,7 @@ Example of correct follow-up: "Es principalmente momentum — el +27.56% con ese
       return 'Other';
     };
     const _sectorMap = {};
-    (gainers || []).slice(0, 30).forEach(s => {
+    (gainers || []).slice(0, 10).forEach(s => {
       const sec = s.sector || _sectorOf(s.ticker, s.name);
       if (!_sectorMap[sec]) _sectorMap[sec] = { count: 0, tickers: [] };
       _sectorMap[sec].count++;
@@ -437,21 +434,11 @@ Example of correct follow-up: "Es principalmente momentum — el +27.56% con ese
       ? `\n━━━ SECTOR ROTATION (from top gainers) ━━━\n${sectorLines.join('\n')}\nWhen asked "what sectors are leading?" or "qué sectores lideran?" — use EXACTLY this breakdown.`
       : '';
 
-    // Explicit allowlist — every ticker the AI is permitted to recommend
-    const allAvailable = (gainers || []).slice(0, 5);
-    const availableBlock = allAvailable.length > 0
-      ? allAvailable.map(s => `${s.ticker} — $${Number(s.price).toFixed(2)}`).join('\n')
-      : 'No live data available.';
-
     return `${currentContext}
 
 ${OVERRIDE}
 
 ${IDENTITY}
-
-━━━ STOCKS AVAILABLE FOR RECOMMENDATIONS RIGHT NOW ━━━
-You may ONLY recommend stocks from this list. Every price must match exactly.
-${availableBlock}
 
 ━━━ LIVE MARKET DATA (USE THESE EXACT NUMBERS) ━━━
 
@@ -460,21 +447,15 @@ ${gainersBlock}
 
 TOP LOSERS TODAY (sorted by % loss):
 ${losersBlock}
-
-MOST ACTIVE BY VOLUME (highest volume movers today):
-${volumeBlock}
-
-TODAY'S TOP MOMENTUM / PENNY STOCKS (high % gain + volume spike — these are your penny stock recommendations):
-${pennyBlock}
 ${sectorBlock}
 
 ━━━ DATA USAGE MAP (match the user's question to the correct section above) ━━━
-• "most active" / "más activas" / "más movidas" / "más volumen" / "hottest" / "calientes" → use MOST ACTIVE BY VOLUME + TOP GAINERS
+• "most active" / "más activas" / "más movidas" / "más volumen" / "hottest" / "calientes" → use TOP GAINERS (sort by highest volume × % gain)
 • "top gainers" / "ganadores" / "más subidas" / "las que más suben" → use TOP GAINERS TODAY
 • "top losers" / "perdedoras" / "más bajas" / "las que más bajan" → use TOP LOSERS TODAY
-• "penny stocks" / "momentum plays" / "hot movers" / "acciones baratas" → use TODAY'S TOP MOMENTUM / PENNY STOCKS
+• "penny stocks" / "momentum plays" / "hot movers" / "acciones baratas" → use TOP GAINERS: highest % gain with volume over 1M, price over $1
 • sectors / sectores / qué sectores lideran / what sectors are leading → use SECTOR ROTATION section
-• "recommendations" / "qué comprar" / "mejores picks" → recommend from TOP GAINERS + MOMENTUM section
+• "recommendations" / "qué comprar" / "mejores picks" → recommend from TOP GAINERS
 • Any general market question → synthesize from all sections
 
 ━━━ ABSOLUTE PROHIBITIONS ━━━
@@ -485,8 +466,8 @@ NEVER invent stocks not listed above for market-mover questions. NEVER use train
 
 ━━━ INSTRUCTIONS ━━━
 • For live market questions (gainers, losers, movers, volume): use ONLY the data above.
-• When user asks for penny stocks, hot movers, or momentum plays: recommend from TODAY'S TOP MOMENTUM / PENNY STOCKS. Use FORMAT 1. NEVER say there are none if the list has stocks.
-• When user asks about "most active" or "hottest": use MOST ACTIVE BY VOLUME. Give the list in FORMAT 1.
+• When user asks for penny stocks, hot movers, or momentum plays: use TOP GAINERS — filter for highest % gain with volume > 1M and price > $1. Use FORMAT 1. NEVER say there are none if the list has stocks.
+• When user asks about "most active" or "hottest": use TOP GAINERS sorted by volume × % gain. Give the list in FORMAT 1.
 • When user asks about earnings, fundamentals, company history, or general financial knowledge for any stock: answer from your training knowledge confidently. These are TYPE 2 questions — you have the knowledge.
 • When user asks about a specific stock's CURRENT price that is NOT in the data above: say "Para ver el precio actual de [TICKER] necesito cargarlo en su propio chat — búscalo en el buscador." Do NOT refuse to share general knowledge about that stock.
 • When user asks about the overall market: use gainers, losers, and volume to give a directional view.
