@@ -126,10 +126,10 @@ export default function AuthScreen({ navigation }) {
     setLoading(true);
     try {
       const { error: e } = await supabase.auth.signInWithOtp({
-        email,
+        email: email.trim().toLowerCase(),
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: undefined, // forces OTP code, not magic link
+          data: { language: 'en' },
         },
       });
       if (e) throw e;
@@ -147,7 +147,7 @@ export default function AuthScreen({ navigation }) {
     setLoading(true);
     try {
       const { data, error: e } = await supabase.auth.verifyOtp({
-        email,
+        email: email.trim().toLowerCase(),
         token: otp,
         type: 'email',
       });
