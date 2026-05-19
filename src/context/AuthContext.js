@@ -130,18 +130,21 @@ export function AuthProvider({ children }) {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // INITIAL_SESSION fires when Supabase restores the session from storage —
-      // getSession() above already handled it, so skip here to avoid a second
-      // state update that resets the Stack navigator to its initial route.
-      if (event === 'INITIAL_SESSION') return;
-
-      const u = mapUser(session?.user ?? null);
-      // Set profileLoading BEFORE setUser so both land in the same render —
-      // prevents App.js from seeing user!=null + profile==null and flashing Onboarding.
-      if (u?.id) setProfileLoading(true);
-      setUser(u);
-      if (u?.id) loadProfile(u.id);
-      else { setProfile(null); setProfileLoading(false); }
+      // Only handle real auth transitions — SIGNED_IN (new login) and SIGNED_OUT (logout).
+      // INITIAL_SESSION is already handled by getSession() above.
+      // TOKEN_REFRESHED and USER_UPDATED must be ignored: they fire silently in the
+      // background and calling setUser/loadProfile on them resets the Stack navigator
+      // to its initial route, causing the auto-redirect-to-Home bug.
+      if (event === 'SIGNED_IN') {
+        const u = mapUser(session?.user ?? null);
+        if (u?.id) setProfileLoading(true);
+        setUser(u);
+        if (u?.id) loadProfile(u.id);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
+        setProfileLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
