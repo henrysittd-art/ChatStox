@@ -21,26 +21,6 @@ import SidebarDrawer      from './src/components/SidebarDrawer';
 const Drawer = createDrawerNavigator();
 const Stack  = createStackNavigator();
 
-const linking = {
-  prefixes: [],
-  config: {
-    screens: {
-      Auth:       'auth',
-      Onboarding: 'onboarding',
-      Main: {
-        path: '',
-        screens: {
-          Landing:     '',
-          Home:        'home',
-          StockChat:   'stock-chat',
-          GeneralChat: 'general-chat',
-          Settings:    'settings',
-        },
-      },
-    },
-  },
-};
-
 function MainDrawer() {
   return (
     <Drawer.Navigator
@@ -109,7 +89,7 @@ export default function App() {
       <AuthProvider>
         <LanguageProvider>
           <TabProvider>
-            <NavigationContainer linking={linking}>
+            <NavigationContainer>
               <AppNavigator />
             </NavigationContainer>
           </TabProvider>
