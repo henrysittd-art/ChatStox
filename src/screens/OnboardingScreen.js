@@ -148,7 +148,7 @@ export default function OnboardingScreen({ navigation }) {
       .upsert({
         id:                  user.id,
         trader_type:         answers.traderType,
-        sectors:             answers.sectors?.join(','),
+        sectors:             answers.sectors || [],
         likes_penny_stocks:  answers.likesPennyStocks === 'yes',
         risk_tolerance:      answers.riskTolerance,
         capital_range:       answers.capitalRange,
