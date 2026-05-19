@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
@@ -50,18 +50,10 @@ function MainDrawer() {
 
 // Must be inside AuthProvider so it can call useAuth()
 function AppNavigator() {
-  const { user, profile, loading, profileLoading } = useAuth();
-  const [timedOut, setTimedOut] = useState(false);
+  const { user, profile, loading } = useAuth();
 
-  // Safety net: if loading states never resolve, unblock after 5 s
-  useEffect(() => {
-    const id = setTimeout(() => setTimedOut(true), 5000);
-    return () => clearTimeout(id);
-  }, []);
-
-  const isLoading = !timedOut && (loading || (user && profileLoading));
-
-  if (isLoading) {
+  // Only block on the auth check — profile loads in background after app is visible
+  if (loading) {
     return (
       <View style={styles.splash}>
         <ActivityIndicator size="large" color="#f5a623" />

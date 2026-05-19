@@ -493,6 +493,29 @@ function fmtVol(v) {
   return String(v);
 }
 
+// ── Gemini retry helper ───────────────────────────────────────────────────────
+const RETRY_DELAYS = [1000, 2000, 3000];
+
+function isRetryable(e) {
+  const msg = e?.message || '';
+  return msg.includes('503') || msg.includes('overloaded') || msg.includes('Service Unavailable') || e?.status === 503;
+}
+
+async function withRetry(fn, label = '') {
+  for (let i = 0; i <= RETRY_DELAYS.length; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (isRetryable(e) && i < RETRY_DELAYS.length) {
+        console.warn(`[/api/chat] ${label} 503, retry ${i + 1}/${RETRY_DELAYS.length} in ${RETRY_DELAYS[i]}ms`);
+        await new Promise(r => setTimeout(r, RETRY_DELAYS[i]));
+      } else {
+        throw e;
+      }
+    }
+  }
+}
+
 // ── POST /api/chat — Gemini proxy (keeps API key server-side, fixes CORS) ───────
 // Accepts OpenAI-style message arrays from the frontend.
 // Extracts the system message as systemInstruction, maps the rest to Gemini format.
@@ -592,16 +615,18 @@ app.post('/api/chat', async (req, res) => {
     const chat = model.startChat({ history });
 
     if (stream) {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.flushHeaders();
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 110000);
 
       try {
-        const result = await chat.sendMessageStream(lastMsg.content);
+        // Delay header flush until we have a successful stream — allows retry on 503
+        const result = await withRetry(() => chat.sendMessageStream(lastMsg.content), 'stream');
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
         for await (const chunk of result.stream) {
           if (controller.signal.aborted) break;
           const token = chunk.text();
@@ -612,6 +637,7 @@ app.post('/api/chat', async (req, res) => {
         res.write('data: [DONE]\n\n');
       } catch (e) {
         console.error('[/api/chat] Gemini stream error:', e.message);
+        if (!res.headersSent) res.status(502).json({ error: e.message });
       } finally {
         clearTimeout(timeoutId);
         res.end();
@@ -621,12 +647,12 @@ app.post('/api/chat', async (req, res) => {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 110000);
-    const result = await Promise.race([
+    const result = await withRetry(() => Promise.race([
       chat.sendMessage(lastMsg.content),
       new Promise((_, reject) =>
         controller.signal.addEventListener('abort', () => reject(new Error('Gemini timeout after 55s')))
       ),
-    ]);
+    ]), 'non-stream');
     clearTimeout(timeoutId);
     const text = result.response.text();
     console.log(`[/api/chat] ✓ Gemini ${text.length} chars`);

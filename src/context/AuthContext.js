@@ -130,11 +130,8 @@ export function AuthProvider({ children }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = mapUser(session?.user ?? null);
       setUser(u);
-      if (u?.id) {
-        loadProfile(u.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
+      setLoading(false); // unblock app immediately — profile loads in background
+      if (u?.id) loadProfile(u.id);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
