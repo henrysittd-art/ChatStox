@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
 
@@ -60,7 +60,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading]         = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
+  // Guard: loadProfile runs once per session. Reset on sign-out or explicit reload.
+  const profileLoadedRef = useRef(false);
+
   const loadProfile = async (userId) => {
+    if (profileLoadedRef.current) return; // already loaded this session
+    profileLoadedRef.current = true;
     if (!userId) { setProfile(null); return; }
     setProfileLoading(true);
     try {
@@ -152,7 +157,6 @@ export function AuthProvider({ children }) {
 
   const saveProfile = async (data) => {
     if (!user?.id) {
-      // Throw so callers know the write failed — never silently no-op
       throw new Error('[AuthContext] saveProfile: no authenticated user id');
     }
     const { error } = await supabase
@@ -162,10 +166,12 @@ export function AuthProvider({ children }) {
       console.error('[AuthContext] saveProfile upsert error:', error.message, error.code);
       throw error;
     }
+    profileLoadedRef.current = false; // allow reload after intentional save
     await loadProfile(user.id);
   };
 
   const signOut = async () => {
+    profileLoadedRef.current = false; // reset so next login can load fresh profile
     await supabase.auth.signOut();
     setProfile(null);
     await AsyncStorage.multiRemove(['userProfile', ONBOARDING_KEY]).catch(() => {});
@@ -177,7 +183,12 @@ export function AuthProvider({ children }) {
     setUser(mapUser(data.user));
   };
 
-  const reloadProfile = () => loadProfile(user?.id);
+  // Explicit reload — resets the guard so callers (e.g. OnboardingScreen after save)
+  // can force a fresh fetch without the background-event guard blocking them.
+  const reloadProfile = () => {
+    profileLoadedRef.current = false;
+    return loadProfile(user?.id);
+  };
 
   return (
     <AuthContext.Provider value={{
