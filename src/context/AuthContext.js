@@ -75,6 +75,7 @@ export function AuthProvider({ children }) {
         console.warn('[AuthContext] profiles fetch error:', error.message);
       }
 
+      console.log('[AuthContext] Supabase profile raw:', data);
       let mapped = mapProfile(data);
 
       // Supabase is authoritative, but if it returned no row or onboarding=false,

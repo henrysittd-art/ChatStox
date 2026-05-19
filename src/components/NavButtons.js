@@ -3,7 +3,7 @@ import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useLanguage } from '../context/LanguageContext';
 
 const NavButtons = ({ currentScreen, navigation }) => {
-  const { lang, setLang } = useLanguage();
+  const { lang, setLang, t } = useLanguage();
 
   const buttons = [
     { label: t('pipeline'),   screen: 'Home' },
