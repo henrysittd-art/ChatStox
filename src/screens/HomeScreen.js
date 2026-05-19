@@ -13,6 +13,7 @@ import { calcRisk } from '../utils/riskLevel';
 import { LogoIcon } from '../components/ChatstoxLogo';
 import NavButtons from '../components/NavButtons';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -92,6 +93,41 @@ function classifySector(ticker, name) {
 function filterBySectors(stocks, selectedSectors) {
   if (selectedSectors.includes('All')) return stocks;
   return stocks.filter(s => selectedSectors.includes(classifySector(s.ticker, s.name)));
+}
+
+// Maps onboarding sector keys → sidebar category keys
+const PROFILE_SECTOR_MAP = {
+  tech:    ['Tech', 'AI'],
+  energy:  ['Energy'],
+  health:  ['Bio/Pharma'],
+  finance: ['Finance'],
+};
+
+function applyProfileFilter(stocks, profile) {
+  if (!profile) return stocks;
+  let result = stocks;
+
+  // Remove sub-$1 stocks for users who opted out of penny stocks
+  if (profile.likesPennyStocks === false) {
+    result = result.filter(s => Number(s.price) >= 1);
+  }
+
+  // Prioritize preferred sectors — matching stocks float to the top, rest follow
+  const raw = Array.isArray(profile.sectors)
+    ? profile.sectors
+    : (profile.sectors ? String(profile.sectors).split(',') : []);
+  const preferredKeys = raw.map(s => s.trim().toLowerCase()).filter(Boolean);
+
+  if (preferredKeys.length > 0 && !preferredKeys.includes('all')) {
+    const preferredSidebarSectors = preferredKeys.flatMap(k => PROFILE_SECTOR_MAP[k] || []);
+    if (preferredSidebarSectors.length > 0) {
+      const preferred = result.filter(s => preferredSidebarSectors.includes(classifySector(s.ticker, s.name)));
+      const rest = result.filter(s => !preferredSidebarSectors.includes(classifySector(s.ticker, s.name)));
+      result = [...preferred, ...rest];
+    }
+  }
+
+  return result;
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -1183,6 +1219,7 @@ function WatchlistPanel({ watchlist, quoteMap, input, onInputChange, onAdd, onRe
 
 export default function HomeScreen({ navigation }) {
   const { t } = useLanguage();
+  const { profile } = useAuth();
 
   const TABS = [
     { key: 'active',   label: t('mostActive') },
@@ -1544,7 +1581,8 @@ export default function HomeScreen({ navigation }) {
     activeTab === 'gainers'  ? gainers :
     losers;
 
-  const filteredList = filterBySectors(rawList, [selectedSector]);
+  const profileList  = applyProfileFilter(rawList, profile);
+  const filteredList = filterBySectors(profileList, [selectedSector]);
   const { col: sortCol, dir: sortDir } = sortState[activeTab];
   const listData = sortData(filteredList, sortCol, sortDir);
   const visibleCount = visibleCounts[activeTab];

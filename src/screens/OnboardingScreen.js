@@ -176,6 +176,14 @@ export default function OnboardingScreen({ navigation }) {
       return;
     }
 
+    // Verify the write landed correctly
+    const { data: verify, error: verifyError } = await supabase
+      .from('profiles')
+      .select('onboarding_complete, trader_type, sectors')
+      .eq('id', userId)
+      .single();
+    console.log('[Onboarding] Verify after save:', verify, verifyError);
+
     await reloadProfile();
     navigation.replace('Main');
   };
