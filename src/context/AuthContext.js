@@ -168,10 +168,12 @@ export function AuthProvider({ children }) {
     setUser(mapUser(data.user));
   };
 
+  const reloadProfile = () => loadProfile(user?.id);
+
   return (
     <AuthContext.Provider value={{
       user, profile, loading, profileLoading,
-      signOut, updateProfile, saveProfile,
+      signOut, updateProfile, saveProfile, reloadProfile,
     }}>
       {children}
     </AuthContext.Provider>

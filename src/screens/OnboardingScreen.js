@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Animated, SafeAreaView, ScrollView, useWindowDimensions,
+  Animated, SafeAreaView, ScrollView, useWindowDimensions, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { supabase } from '../services/supabase';
 import { LogoIcon } from '../components/ChatstoxLogo';
 
 const GREEN  = '#00C853';
@@ -77,7 +78,7 @@ const QUESTIONS = [
 ];
 
 export default function OnboardingScreen({ navigation }) {
-  const { saveProfile } = useAuth();
+  const { user, reloadProfile } = useAuth();
   const { lang } = useLanguage();
   const { width } = useWindowDimensions();
   const isWide = width >= 600;
@@ -139,27 +140,30 @@ export default function OnboardingScreen({ navigation }) {
     }
     setSaving(true);
 
-    // 1. Write backup to AsyncStorage immediately — this survives any Supabase failure.
-    //    AuthContext.loadProfile will restore onboardingComplete:true from here if needed.
+    // Write AsyncStorage backup first — survives any Supabase failure.
     await AsyncStorage.setItem('onboarding_complete', 'true').catch(() => {});
 
-    // 2. Write to Supabase (authoritative source)
-    try {
-      await saveProfile({
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({
+        id:                  user.id,
         trader_type:         answers.traderType,
-        sectors:             Array.isArray(answers.sectors) ? answers.sectors.join(',') : answers.sectors,
+        sectors:             answers.sectors?.join(','),
         likes_penny_stocks:  answers.likesPennyStocks === 'yes',
         risk_tolerance:      answers.riskTolerance,
         capital_range:       answers.capitalRange,
         language:            lang,
         onboarding_complete: true,
-      });
-    } catch (e) {
-      // Supabase write failed — log it clearly but don't block the user.
-      // The AsyncStorage backup above ensures onboarding won't repeat on next load.
-      console.error('[Onboarding] saveProfile failed, proceeding with AsyncStorage backup:', e?.message);
+      }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Save profile error:', error);
+      Alert.alert('Error saving profile', error.message);
+      setSaving(false);
+      return;
     }
 
+    await reloadProfile();
     navigation.replace('Main');
   };
 
