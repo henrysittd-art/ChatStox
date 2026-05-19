@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   Animated, SafeAreaView, ScrollView, useWindowDimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { LogoIcon } from '../components/ChatstoxLogo';
@@ -137,6 +138,12 @@ export default function OnboardingScreen({ navigation }) {
       return;
     }
     setSaving(true);
+
+    // 1. Write backup to AsyncStorage immediately — this survives any Supabase failure.
+    //    AuthContext.loadProfile will restore onboardingComplete:true from here if needed.
+    await AsyncStorage.setItem('onboarding_complete', 'true').catch(() => {});
+
+    // 2. Write to Supabase (authoritative source)
     try {
       await saveProfile({
         trader_type:         answers.traderType,
@@ -147,7 +154,12 @@ export default function OnboardingScreen({ navigation }) {
         language:            lang,
         onboarding_complete: true,
       });
-    } catch (_) { /* proceed even on Supabase error */ }
+    } catch (e) {
+      // Supabase write failed — log it clearly but don't block the user.
+      // The AsyncStorage backup above ensures onboarding won't repeat on next load.
+      console.error('[Onboarding] saveProfile failed, proceeding with AsyncStorage backup:', e?.message);
+    }
+
     navigation.replace('Main');
   };
 

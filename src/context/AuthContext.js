@@ -4,7 +4,9 @@ import { supabase } from '../services/supabase';
 
 const AuthContext = createContext(null);
 
-// Maps Supabase auth user → app user shape
+// Separate key so a single AsyncStorage.getItem('onboarding_complete') is fast
+const ONBOARDING_KEY = 'onboarding_complete';
+
 function mapUser(supabaseUser) {
   if (!supabaseUser) return null;
   const meta = supabaseUser.user_metadata || {};
@@ -18,7 +20,6 @@ function mapUser(supabaseUser) {
   };
 }
 
-// Maps Supabase profiles row → camelCase for use in the app / AI prompt
 function mapProfile(row) {
   if (!row) return null;
   return {
@@ -28,8 +29,29 @@ function mapProfile(row) {
     riskTolerance:      row.risk_tolerance || '',
     capitalRange:       row.capital_range  || '',
     language:           row.language       || 'en',
-    onboardingComplete: row.onboarding_complete ?? false,
+    // !! for explicit boolean — guards against null/0/'false' from DB
+    onboardingComplete: !!row.onboarding_complete,
   };
+}
+
+// Writes profile + separate onboarding flag to AsyncStorage
+async function persistToStorage(mapped) {
+  if (!mapped) return;
+  try {
+    await AsyncStorage.setItem('userProfile', JSON.stringify({
+      traderType:         mapped.traderType,
+      sectors:            mapped.sectors,
+      likesPennyStocks:   mapped.likesPennyStocks,
+      riskTolerance:      mapped.riskTolerance,
+      capitalRange:       mapped.capitalRange,
+      language:           mapped.language,
+      onboardingComplete: mapped.onboardingComplete,
+    }));
+    // Fast key: once true, stays true (cleared only on signOut)
+    if (mapped.onboardingComplete) {
+      await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
+    }
+  } catch (_) {}
 }
 
 export function AuthProvider({ children }) {
@@ -38,7 +60,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading]         = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  // Load Supabase profile row and sync to AsyncStorage so chat screens can read it
   const loadProfile = async (userId) => {
     if (!userId) { setProfile(null); return; }
     setProfileLoading(true);
@@ -50,26 +71,47 @@ export function AuthProvider({ children }) {
         .single();
 
       if (error && error.code !== 'PGRST116') {
-        // PGRST116 = row not found (new user, not an error)
+        // PGRST116 = row not found (new user), everything else is unexpected
         console.warn('[AuthContext] profiles fetch error:', error.message);
       }
 
-      const mapped = mapProfile(data);
-      setProfile(mapped);
+      let mapped = mapProfile(data);
 
-      // Write to AsyncStorage so existing chat-screen logic still works
-      if (mapped) {
-        await AsyncStorage.setItem('userProfile', JSON.stringify({
-          traderType:       mapped.traderType,
-          sectors:          mapped.sectors,
-          likesPennyStocks: mapped.likesPennyStocks,
-          riskTolerance:    mapped.riskTolerance,
-          capitalRange:     mapped.capitalRange,
-          language:         mapped.language,
-        })).catch(() => {});
+      // Supabase is authoritative, but if it returned no row or onboarding=false,
+      // cross-check AsyncStorage — a previous Supabase write may have silently failed.
+      if (!mapped?.onboardingComplete) {
+        const cached = await AsyncStorage.getItem(ONBOARDING_KEY).catch(() => null);
+        if (cached === 'true') {
+          console.log('[AuthContext] onboarding_complete not in Supabase — restoring from AsyncStorage backup');
+          mapped = mapped
+            ? { ...mapped, onboardingComplete: true }
+            : { traderType: '', sectors: '', likesPennyStocks: null,
+                riskTolerance: '', capitalRange: '', language: 'en',
+                onboardingComplete: true };
+        }
       }
+
+      setProfile(mapped);
+      await persistToStorage(mapped);
     } catch (e) {
       console.warn('[AuthContext] loadProfile unexpected error:', e.message);
+      // On total Supabase failure, fall back to AsyncStorage so user isn't stuck
+      try {
+        const cached = await AsyncStorage.getItem(ONBOARDING_KEY);
+        if (cached === 'true') {
+          const rawProfile = await AsyncStorage.getItem('userProfile');
+          const stored = rawProfile ? JSON.parse(rawProfile) : {};
+          setProfile({
+            traderType:         stored.traderType        || '',
+            sectors:            stored.sectors           || '',
+            likesPennyStocks:   stored.likesPennyStocks  ?? null,
+            riskTolerance:      stored.riskTolerance     || '',
+            capitalRange:       stored.capitalRange      || '',
+            language:           stored.language          || 'en',
+            onboardingComplete: true,
+          });
+        }
+      } catch (_) {}
     } finally {
       setProfileLoading(false);
     }
@@ -99,20 +141,25 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Upsert profile row to Supabase + refresh local state
   const saveProfile = async (data) => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      // Throw so callers know the write failed — never silently no-op
+      throw new Error('[AuthContext] saveProfile: no authenticated user id');
+    }
     const { error } = await supabase
       .from('profiles')
       .upsert({ id: user.id, ...data }, { onConflict: 'id' });
-    if (error) throw error;
+    if (error) {
+      console.error('[AuthContext] saveProfile upsert error:', error.message, error.code);
+      throw error;
+    }
     await loadProfile(user.id);
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
-    await AsyncStorage.removeItem('userProfile').catch(() => {});
+    await AsyncStorage.multiRemove(['userProfile', ONBOARDING_KEY]).catch(() => {});
   };
 
   const updateProfile = async (updates) => {
