@@ -64,9 +64,12 @@ export function AuthProvider({ children }) {
   const profileLoadedRef = useRef(false);
 
   const loadProfile = async (userId) => {
-    if (profileLoadedRef.current) return; // already loaded this session
+    if (profileLoadedRef.current) {
+      setProfileLoading(false); // caller may have set this — don't leave it stuck
+      return;
+    }
     profileLoadedRef.current = true;
-    if (!userId) { setProfile(null); return; }
+    if (!userId) { setProfile(null); setProfileLoading(false); return; }
     setProfileLoading(true);
     try {
       const { data, error } = await supabase
