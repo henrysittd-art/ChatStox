@@ -568,11 +568,11 @@ const smStyles = StyleSheet.create({
 // ── Quick Actions ─────────────────────────────────────────────────────────────
 
 const QUICK_ACTION_PROMPTS = [
-  { key: 'analyzeSetup', prompt: 'Analyze the current technical setup for this stock based on real-time market data.' },
-  { key: 'keyLevels',    prompt: "What are the key support and resistance levels based on today's data?" },
-  { key: 'riskReward',   prompt: 'What is the risk/reward profile for this stock at current levels?' },
-  { key: 'whatsDriving', prompt: "What are the main factors driving this stock's price action today?" },
-  { key: 'optionsFlow',  prompt: 'Based on current price and volume data, what does options flow suggest about market sentiment?' },
+  { key: 'analyzeSetup', prompt: 'Analyze the current technical setup for this stock based on real-time market data.',              prompt_es: 'Analiza el setup técnico actual de esta acción basándote en los datos en tiempo real.' },
+  { key: 'keyLevels',    prompt: "What are the key support and resistance levels based on today's data?",                          prompt_es: '¿Cuáles son los niveles clave de soporte y resistencia según los datos de hoy?' },
+  { key: 'riskReward',   prompt: 'What is the risk/reward profile for this stock at current levels?',                              prompt_es: '¿Cuál es el perfil de riesgo/beneficio de esta acción a los niveles actuales?' },
+  { key: 'whatsDriving', prompt: "What are the main factors driving this stock's price action today?",                             prompt_es: '¿Cuáles son los principales factores que impulsan el movimiento de esta acción hoy?' },
+  { key: 'optionsFlow',  prompt: 'Based on current price and volume data, what does options flow suggest about market sentiment?',  prompt_es: 'Basándote en el precio y volumen actuales, ¿qué sugiere el flujo de opciones sobre el sentimiento del mercado?' },
 ];
 
 // Builds the Trade Setup prompt with smart stop/target logic.
@@ -824,7 +824,7 @@ const INVALID_TICKERS = new Set([
 ]);
 
 export default function StockChatScreen({ route, navigation }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { tabs, addTab, closeTab, updateTab } = useTabs();
 
   const initialTicker = route.params?.ticker || '';
@@ -1575,7 +1575,7 @@ export default function StockChatScreen({ route, navigation }) {
               <TouchableOpacity
                 key={a.key}
                 style={styles.quickBtn}
-                onPress={() => sendMessage(a.prompt, { label: t(a.key) })}
+                onPress={() => sendMessage(lang === 'es' ? (a.prompt_es || a.prompt) : a.prompt, { label: t(a.key) })}
                 disabled={thinking}
               >
                 <Text style={styles.quickBtnText}>{t(a.key)}</Text>

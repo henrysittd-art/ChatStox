@@ -599,8 +599,14 @@ app.post('/api/chat', async (req, res) => {
     }
   }
 
+  // For general chat (no specific stock), add an explicit no-hallucination rule
+  // so the AI doesn't invent prices for tickers not in the real-time data block.
+  const noPriceRule = !currentTicker
+    ? '\n\nCRITICAL PRICE RULE: NEVER invent, estimate, or recall prices for specific stocks from training data. Only state prices that appear verbatim in the REAL-TIME DATA block above. If a stock\'s price is not in the real-time data, say exactly: "I don\'t have live data for that ticker right now — search for it in Stock Chat for a full analysis." Do not guess.'
+    : '';
+
   const systemInstruction = (realtimeBlock || noDataBlock)
-    ? (systemMsg ? systemMsg.content + realtimeBlock + noDataBlock : (realtimeBlock + noDataBlock).trim())
+    ? (systemMsg ? systemMsg.content + realtimeBlock + noDataBlock + noPriceRule : (realtimeBlock + noDataBlock + noPriceRule).trim())
     : systemMsg?.content;
 
   console.log('[INJECTED CONTEXT]', realtimeBlock?.substring(0, 200));

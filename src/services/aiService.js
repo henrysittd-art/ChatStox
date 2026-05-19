@@ -956,15 +956,17 @@ export async function testAIConnection() {
 export async function callAI({ stock, question, history = [], profile, isGeneral, isAutoAnalysis, details, news, gainers, losers, volume, extendedData, marketIndices, earnings, onChunk }) {
   const systemContent = buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings });
 
+  // ── Language override — injected FIRST so it takes absolute priority ────────
+  const lang     = profile?.language || 'en';
+  const langName = lang === 'es' ? 'Spanish (español)' : 'English';
+  const langHeader = `CRITICAL: You MUST respond in ${langName} only. Every single response must be in ${langName}. Do not switch languages under any circumstance.\n\n`;
+
   // ── User profile personalization block ───────────────────────────────────
-  const langOverride = profile?.language === 'es'
-    ? ' LANGUAGE OVERRIDE: ALWAYS respond in Spanish.'
-    : ' LANGUAGE OVERRIDE: ALWAYS respond in English.';
   const profileContext = profile
-    ? `\nUSER: ${profile.traderType||'trader'} | sectors: ${Array.isArray(profile.sectors) ? profile.sectors.join(',') : profile.sectors||'all'} | risk: ${profile.riskTolerance||'medium'} | pennies: ${profile.likesPennyStocks?'yes':'no'} | lang: ${profile.language||'en'}.${langOverride}`
+    ? `\nUSER: ${profile.traderType||'trader'} | sectors: ${Array.isArray(profile.sectors) ? profile.sectors.join(',') : profile.sectors||'all'} | risk: ${profile.riskTolerance||'medium'} | pennies: ${profile.likesPennyStocks?'yes':'no'} | lang: ${lang}.`
     : '';
 
-  let fullSystem = systemContent + profileContext;
+  let fullSystem = langHeader + systemContent + profileContext;
   console.log(`[CHATSTOX AI] System prompt: ${fullSystem.length} chars`);
   if (fullSystem.length < 1000) {
     console.error(`[CHATSTOX AI] WARNING: System prompt too short (${fullSystem.length} chars) — stock=${stock?.ticker ?? 'null'} isGeneral=${isGeneral ?? false}. buildSystemPrompt may have returned early or failed.`);

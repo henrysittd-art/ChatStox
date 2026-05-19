@@ -22,11 +22,11 @@ const BACKEND = BACKEND_URL;
 const LEGACY_KEY = 'chat_general_market';
 
 const QUICK_ACTION_PROMPTS = [
-  { key: 'todaysGainers',  prompt: "What are today's top gaining stocks from live market data?" },
-  { key: 'todaysLosers',   prompt: "What are today's top losing stocks from live market data?" },
-  { key: 'marketSentiment', prompt: "What does today's real-time data tell us about overall market sentiment?" },
-  { key: 'topVolume',      prompt: "Which stocks have the highest volume today?" },
-  { key: 'marketOverview', prompt: "Give me a brief overview of today's market conditions based on real-time data." },
+  { key: 'todaysGainers',   prompt: "What are today's top gaining stocks from live market data?",                              prompt_es: '¿Cuáles son las acciones con mayores ganancias hoy según datos en tiempo real?' },
+  { key: 'todaysLosers',    prompt: "What are today's top losing stocks from live market data?",                               prompt_es: '¿Cuáles son las acciones con mayores pérdidas hoy según datos en tiempo real?' },
+  { key: 'marketSentiment', prompt: "What does today's real-time data tell us about overall market sentiment?",                prompt_es: '¿Qué nos dicen los datos de hoy sobre el sentimiento general del mercado?' },
+  { key: 'topVolume',       prompt: "Which stocks have the highest volume today?",                                             prompt_es: '¿Qué acciones tienen el mayor volumen de negociación hoy?' },
+  { key: 'marketOverview',  prompt: "Give me a brief overview of today's market conditions based on real-time data.",          prompt_es: 'Dame un resumen breve de las condiciones del mercado hoy basado en datos en tiempo real.' },
 ];
 
 function StreamingCursor() {
@@ -182,7 +182,7 @@ const gtStyles = StyleSheet.create({
 // ── GeneralChatScreen ─────────────────────────────────────────────────────────
 
 export default function GeneralChatScreen({ navigation, route }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { tabs, tabsLoaded, addGeneralTab, closeTab } = useTabs();
 
   const [volume, setVolume] = useState([]);
@@ -580,7 +580,7 @@ export default function GeneralChatScreen({ navigation, route }) {
         {/* Quick Actions */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.quickRow} contentContainerStyle={styles.quickContent}>
           {QUICK_ACTION_PROMPTS.map(a => (
-            <TouchableOpacity key={a.key} style={styles.quickBtn} onPress={() => sendMessage(a.prompt)} disabled={thinking}>
+            <TouchableOpacity key={a.key} style={styles.quickBtn} onPress={() => sendMessage(lang === 'es' ? (a.prompt_es || a.prompt) : a.prompt)} disabled={thinking}>
               <Text style={styles.quickBtnText}>{t(a.key)}</Text>
             </TouchableOpacity>
           ))}
