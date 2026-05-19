@@ -6,9 +6,9 @@ const NavButtons = ({ currentScreen, navigation }) => {
   const { lang, setLang } = useLanguage();
 
   const buttons = [
-    { label: 'Pipeline',    screen: 'Home' },
-    { label: 'Market Chat', screen: 'GeneralChat' },
-    { label: 'Stock Chat',  screen: 'StockChat' },
+    { label: t('pipeline'),   screen: 'Home' },
+    { label: t('marketChat'), screen: 'GeneralChat' },
+    { label: t('stockChat'),  screen: 'StockChat' },
   ];
 
   return (

@@ -11,6 +11,7 @@ import { buildDisclaimerMessage, hasSeenDisclaimer, markDisclaimerSeen } from '.
 import { LogoIcon } from '../components/ChatstoxLogo';
 import NavButtons from '../components/NavButtons';
 import { useTabs, generateTabName } from '../context/TabContext';
+import { useLanguage } from '../context/LanguageContext';
 import { extractTicker } from '../utils/tickerExtractor';
 import { detectHistoricalQuery } from '../utils/detectHistoricalQuery';
 import { nowISO, formatMessageTime } from '../utils/formatTime';
@@ -20,12 +21,12 @@ const BACKEND = BACKEND_URL;
 
 const LEGACY_KEY = 'chat_general_market';
 
-const QUICK_ACTIONS = [
-  { label: "Today's Gainers", prompt: "What are today's top gaining stocks from live market data?" },
-  { label: "Today's Losers", prompt: "What are today's top losing stocks from live market data?" },
-  { label: 'Market Sentiment', prompt: "What does today's real-time data tell us about overall market sentiment?" },
-  { label: 'Top Volume', prompt: "Which stocks have the highest volume today?" },
-  { label: 'Market Overview', prompt: "Give me a brief overview of today's market conditions based on real-time data." },
+const QUICK_ACTION_PROMPTS = [
+  { key: 'todaysGainers',  prompt: "What are today's top gaining stocks from live market data?" },
+  { key: 'todaysLosers',   prompt: "What are today's top losing stocks from live market data?" },
+  { key: 'marketSentiment', prompt: "What does today's real-time data tell us about overall market sentiment?" },
+  { key: 'topVolume',      prompt: "Which stocks have the highest volume today?" },
+  { key: 'marketOverview', prompt: "Give me a brief overview of today's market conditions based on real-time data." },
 ];
 
 function StreamingCursor() {
@@ -181,6 +182,7 @@ const gtStyles = StyleSheet.create({
 // ── GeneralChatScreen ─────────────────────────────────────────────────────────
 
 export default function GeneralChatScreen({ navigation, route }) {
+  const { t } = useLanguage();
   const { tabs, tabsLoaded, addGeneralTab, closeTab } = useTabs();
 
   const [volume, setVolume] = useState([]);
@@ -501,7 +503,7 @@ export default function GeneralChatScreen({ navigation, route }) {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator size="large" color="#f5a623" />
-        <Text style={styles.loadingText}>Loading live market data...</Text>
+        <Text style={styles.loadingText}>{t('loadingLiveData')}</Text>
       </View>
     );
   }
@@ -527,7 +529,7 @@ export default function GeneralChatScreen({ navigation, route }) {
             <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
           <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle}>Market Chat</Text>
+            <Text style={styles.headerTitle}>{t('marketChat')}</Text>
           </View>
           <Text style={styles.liveBadge}>● LIVE</Text>
         </View>
@@ -560,7 +562,7 @@ export default function GeneralChatScreen({ navigation, route }) {
               return (
                 <View key={i} style={styles.sessionDivider}>
                   <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>Previous conversation</Text>
+                  <Text style={styles.dividerText}>{t('previousConversation')}</Text>
                   <View style={styles.dividerLine} />
                 </View>
               );
@@ -570,16 +572,16 @@ export default function GeneralChatScreen({ navigation, route }) {
           {thinking && !messages[messages.length - 1]?.isStreaming && (
             <View style={styles.thinkingRow}>
               <ActivityIndicator size="small" color="#f5a623" />
-              <Text style={styles.thinkingText}>Analyzing market data...</Text>
+              <Text style={styles.thinkingText}>{t('analyzingMarket')}</Text>
             </View>
           )}
         </ScrollView>
 
         {/* Quick Actions */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.quickRow} contentContainerStyle={styles.quickContent}>
-          {QUICK_ACTIONS.map(a => (
-            <TouchableOpacity key={a.label} style={styles.quickBtn} onPress={() => sendMessage(a.prompt)} disabled={thinking}>
-              <Text style={styles.quickBtnText}>{a.label}</Text>
+          {QUICK_ACTION_PROMPTS.map(a => (
+            <TouchableOpacity key={a.key} style={styles.quickBtn} onPress={() => sendMessage(a.prompt)} disabled={thinking}>
+              <Text style={styles.quickBtnText}>{t(a.key)}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -590,7 +592,7 @@ export default function GeneralChatScreen({ navigation, route }) {
             style={styles.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask about the market or type a ticker..."
+            placeholder={t('askMarketPlaceholder')}
             placeholderTextColor="#94a3b8"
             multiline
             onSubmitEditing={() => sendMessage()}

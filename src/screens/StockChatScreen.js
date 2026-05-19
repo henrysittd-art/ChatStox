@@ -16,6 +16,7 @@ import { buildDisclaimerMessage, hasSeenDisclaimer, markDisclaimerSeen } from '.
 import { calcRisk } from '../utils/riskLevel';
 import { LogoIcon } from '../components/ChatstoxLogo';
 import NavButtons from '../components/NavButtons';
+import { useLanguage } from '../context/LanguageContext';
 import { detectHistoricalQuery } from '../utils/detectHistoricalQuery';
 import { nowISO, formatMessageTime } from '../utils/formatTime';
 import { BACKEND_URL } from '../config/api';
@@ -458,6 +459,7 @@ const tbStyles = StyleSheet.create({
 // ── SearchModal ───────────────────────────────────────────────────────────────
 
 function SearchModal({ visible, onClose, onSearch }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
   const inputRef = useRef(null);
 
@@ -472,7 +474,7 @@ function SearchModal({ visible, onClose, onSearch }) {
     const raw = query.trim();
     if (!raw) return;
     if (!isTickerSearch(raw)) {
-      Alert.alert('', 'Para preguntas generales usa el chat de mercado');
+      Alert.alert('', t('generalQuestionsAlert'));
       return;
     }
     const ticker = extractTicker(raw) || raw.toUpperCase();
@@ -485,11 +487,11 @@ function SearchModal({ visible, onClose, onSearch }) {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={smStyles.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={smStyles.card}>
-          <Text style={smStyles.title}>Open Stock Chat</Text>
+          <Text style={smStyles.title}>{t('openStockChat')}</Text>
           <TextInput
             ref={inputRef}
             style={smStyles.input}
-            placeholder="Ticker or company (e.g. Apple, TSLA, NVDA)..."
+            placeholder={t('tickerSearchPlaceholder')}
             placeholderTextColor="#94a3b8"
             value={query}
             onChangeText={setQuery}
@@ -500,10 +502,10 @@ function SearchModal({ visible, onClose, onSearch }) {
           />
           <View style={smStyles.btnRow}>
             <TouchableOpacity style={smStyles.cancelBtn} onPress={onClose}>
-              <Text style={smStyles.cancelText}>Cancel</Text>
+              <Text style={smStyles.cancelText}>{t('cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={smStyles.openBtn} onPress={handleSubmit}>
-              <Text style={smStyles.openText}>Open Chat</Text>
+              <Text style={smStyles.openText}>{t('openChat')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -565,12 +567,12 @@ const smStyles = StyleSheet.create({
 
 // ── Quick Actions ─────────────────────────────────────────────────────────────
 
-const QUICK_ACTIONS = [
-  { label: 'Analyze setup', prompt: 'Analyze the current technical setup for this stock based on real-time market data.' },
-  { label: 'Key levels', prompt: "What are the key support and resistance levels based on today's data?" },
-  { label: 'Risk/reward', prompt: 'What is the risk/reward profile for this stock at current levels?' },
-  { label: "What's driving this?", prompt: "What are the main factors driving this stock's price action today?" },
-  { label: 'Options flow', prompt: 'Based on current price and volume data, what does options flow suggest about market sentiment?' },
+const QUICK_ACTION_PROMPTS = [
+  { key: 'analyzeSetup', prompt: 'Analyze the current technical setup for this stock based on real-time market data.' },
+  { key: 'keyLevels',    prompt: "What are the key support and resistance levels based on today's data?" },
+  { key: 'riskReward',   prompt: 'What is the risk/reward profile for this stock at current levels?' },
+  { key: 'whatsDriving', prompt: "What are the main factors driving this stock's price action today?" },
+  { key: 'optionsFlow',  prompt: 'Based on current price and volume data, what does options flow suggest about market sentiment?' },
 ];
 
 // Builds the Trade Setup prompt with smart stop/target logic.
@@ -709,6 +711,7 @@ const CUSTOM_PROMPTS_KEY = 'customQuickPrompts';
 // ── AddPromptModal ────────────────────────────────────────────────────────────
 
 function AddPromptModal({ visible, onClose, onSave }) {
+  const { t } = useLanguage();
   const [text, setText] = useState('');
   const inputRef = useRef(null);
 
@@ -731,8 +734,8 @@ function AddPromptModal({ visible, onClose, onSave }) {
       <TouchableOpacity style={apStyles.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={apStyles.sheet}>
           <View style={apStyles.handle} />
-          <Text style={apStyles.title}>New Quick Button</Text>
-          <Text style={apStyles.subtitle}>Type your question — it becomes a one-tap button in every stock chat.</Text>
+          <Text style={apStyles.title}>{t('newQuickButton')}</Text>
+          <Text style={apStyles.subtitle}>{t('newQuickSubtitle')}</Text>
           <TextInput
             ref={inputRef}
             style={apStyles.input}
@@ -749,14 +752,14 @@ function AddPromptModal({ visible, onClose, onSave }) {
           <Text style={apStyles.charCount}>{text.length}/80</Text>
           <View style={apStyles.btnRow}>
             <TouchableOpacity style={apStyles.cancelBtn} onPress={onClose}>
-              <Text style={apStyles.cancelText}>Cancel</Text>
+              <Text style={apStyles.cancelText}>{t('cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[apStyles.saveBtn, !text.trim() && apStyles.saveBtnDisabled]}
               onPress={handleSave}
               disabled={!text.trim()}
             >
-              <Text style={apStyles.saveText}>Save Button</Text>
+              <Text style={apStyles.saveText}>{t('saveButton')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -821,6 +824,7 @@ const INVALID_TICKERS = new Set([
 ]);
 
 export default function StockChatScreen({ route, navigation }) {
+  const { t } = useLanguage();
   const { tabs, addTab, closeTab, updateTab } = useTabs();
 
   const initialTicker = route.params?.ticker || '';
@@ -872,12 +876,12 @@ export default function StockChatScreen({ route, navigation }) {
 
   const deleteCustomPrompt = (index) => {
     Alert.alert(
-      'Remove button',
-      `Remove "${customPrompts[index].label}" from quick actions?`,
+      t('removeButtonTitle'),
+      `${t('removeButtonConfirm').replace('?', '')} "${customPrompts[index].label}"?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('remove'),
           style: 'destructive',
           onPress: async () => {
             const updated = customPrompts.filter((_, i) => i !== index);
@@ -1417,7 +1421,7 @@ export default function StockChatScreen({ route, navigation }) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
         <Text style={{ fontSize: 16, textAlign: 'center', color: '#666' }}>
-          Para preguntas generales sobre el mercado, usa el chat principal. Busca un ticker específico como AAPL, TSLA, NVDA.
+          {t('invalidTickerMsg')}
         </Text>
       </View>
     );
@@ -1487,7 +1491,7 @@ export default function StockChatScreen({ route, navigation }) {
         ) : (
           <View style={styles.emptyTabBar}>
             <TouchableOpacity onPress={() => setShowSearch(true)} style={styles.addTabBtn}>
-              <Text style={styles.addTabBtnText}>+ Open another stock</Text>
+              <Text style={styles.addTabBtnText}>{t('openAnotherStock')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1501,7 +1505,7 @@ export default function StockChatScreen({ route, navigation }) {
         {loading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color="#f5a623" />
-            <Text style={styles.loadingText}>Loading {currentTicker}...</Text>
+            <Text style={styles.loadingText}>{t('loadingStock')} {currentTicker}...</Text>
           </View>
         ) : (
           <ScrollView
@@ -1525,7 +1529,7 @@ export default function StockChatScreen({ route, navigation }) {
                   <View key={i} style={styles.momentumAlertBox}>
                     <Text style={styles.momentumAlertLabel}>⚡ MOMENTUM ALERT</Text>
                     <Text style={styles.momentumAlertText}>
-                      {'Esta acción fue detectada en movimiento activo. Los momentum plays pueden subir rápidamente — y caer igual de rápido.\n\n• Verifica que tu broker permita comprar esta acción antes de actuar\n• El momentum puede revertirse en segundos sin previo aviso\n• Esta información es únicamente informativa y refleja datos de mercado en tiempo real\n• No constituye asesoría de inversión ni recomendación de compra\n\nProcede con precaución y gestiona tu riesgo.'}
+                      {t('momentumAlertText')}
                     </Text>
                   </View>
                 );
@@ -1534,7 +1538,7 @@ export default function StockChatScreen({ route, navigation }) {
                 return (
                   <View key={i} style={styles.sessionDivider}>
                     <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>Previous conversation</Text>
+                    <Text style={styles.dividerText}>{t('previousConversationStock')}</Text>
                     <View style={styles.dividerLine} />
                   </View>
                 );
@@ -1544,7 +1548,7 @@ export default function StockChatScreen({ route, navigation }) {
             {thinking && !messages[messages.length - 1]?.isStreaming && (
               <View style={styles.thinkingRow}>
                 <ActivityIndicator size="small" color="#f5a623" />
-                <Text style={styles.thinkingText}>CHATSTOX AI is analyzing...</Text>
+                <Text style={styles.thinkingText}>{t('analyzingAI')}</Text>
               </View>
             )}
           </ScrollView>
@@ -1561,20 +1565,20 @@ export default function StockChatScreen({ route, navigation }) {
             {/* Trade Setup — premium gold button, always first */}
             <TouchableOpacity
               style={styles.quickBtnTradeSetup}
-              onPress={() => stock && sendMessage(buildTradeSetupPrompt(currentTicker, stock), { label: 'Trade Setup 🎯' })}
+              onPress={() => stock && sendMessage(buildTradeSetupPrompt(currentTicker, stock), { label: t('tradeSetup') })}
               disabled={thinking || !stock}
             >
-              <Text style={styles.quickBtnTradeSetupText}>Trade Setup 🎯</Text>
+              <Text style={styles.quickBtnTradeSetupText}>{t('tradeSetup')}</Text>
             </TouchableOpacity>
 
-            {QUICK_ACTIONS.map(a => (
+            {QUICK_ACTION_PROMPTS.map(a => (
               <TouchableOpacity
-                key={a.label}
+                key={a.key}
                 style={styles.quickBtn}
-                onPress={() => sendMessage(a.prompt, { label: a.label })}
+                onPress={() => sendMessage(a.prompt, { label: t(a.key) })}
                 disabled={thinking}
               >
-                <Text style={styles.quickBtnText}>{a.label}</Text>
+                <Text style={styles.quickBtnText}>{t(a.key)}</Text>
               </TouchableOpacity>
             ))}
             {customPrompts.map((a, i) => (
@@ -1605,7 +1609,7 @@ export default function StockChatScreen({ route, navigation }) {
             style={styles.input}
             value={input}
             onChangeText={setInput}
-            placeholder={currentTicker ? `Ask about ${currentTicker}...` : 'Ask anything...'}
+            placeholder={currentTicker ? `${t('askStockPlaceholder')} ${currentTicker}...` : t('askAnythingPlaceholder')}
             placeholderTextColor="#94a3b8"
             multiline
             onSubmitEditing={() => sendMessage()}

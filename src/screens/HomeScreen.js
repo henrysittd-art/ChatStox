@@ -12,6 +12,7 @@ import { extractTicker, isTickerSearch } from '../utils/tickerExtractor';
 import { calcRisk } from '../utils/riskLevel';
 import { LogoIcon } from '../components/ChatstoxLogo';
 import NavButtons from '../components/NavButtons';
+import { useLanguage } from '../context/LanguageContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -295,6 +296,7 @@ const PHASE_LABEL = {
 // ── BriefCard ──────────────────────────────────────────────────────────────────
 
 function BriefCard({ briefLoading, aiBrief, briefSectors, briefIndices, briefVix, et, lastUpdated }) {
+  const { t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const dataFadeAnim  = useRef(new Animated.Value(1)).current;
   const timePulseAnim = useRef(new Animated.Value(0)).current;
@@ -361,7 +363,7 @@ function BriefCard({ briefLoading, aiBrief, briefSectors, briefIndices, briefVix
       <View style={bcStyles.headerRow}>
         <View style={bcStyles.headerLeft}>
           <View style={[bcStyles.dot, { backgroundColor: et.dotColor }]} />
-          <Text style={bcStyles.title}>Market Brief</Text>
+          <Text style={bcStyles.title}>{t('marketBrief')}</Text>
         </View>
         <View style={bcStyles.headerRight}>
           <View style={[bcStyles.toneBadge, { backgroundColor: TONE_BG[tone] }]}>
@@ -396,12 +398,12 @@ function BriefCard({ briefLoading, aiBrief, briefSectors, briefIndices, briefVix
         {/* Loading state (initial only) */}
         {briefLoading && !aiBrief ? (
           <View style={bcStyles.loadingRow}>
-            <Text style={bcStyles.loadingText}>Generating market brief...</Text>
+            <Text style={bcStyles.loadingText}>{t('generatingBrief')}</Text>
           </View>
         ) : (
           <>
             {/* Section label: Major Indices */}
-            <Text style={bcStyles.sectionLabel}>MAJOR INDICES</Text>
+            <Text style={bcStyles.sectionLabel}>{t('majorIndices')}</Text>
 
             {/* 4-index single row */}
             <View style={bcStyles.idxGrid}>
@@ -419,10 +421,10 @@ function BriefCard({ briefLoading, aiBrief, briefSectors, briefIndices, briefVix
             {/* AI insight */}
             {aiBrief ? (
               <>
-                <Text style={bcStyles.sectionLabel}>🧠 AI MARKET INSIGHT</Text>
+                <Text style={bcStyles.sectionLabel}>{t('aiInsight')}</Text>
                 <Text style={bcStyles.insight} numberOfLines={expanded ? undefined : 2}>{aiBrief}</Text>
                 {!expanded && aiBrief.length > 100 && (
-                  <Text style={bcStyles.readMore}>Read more...</Text>
+                  <Text style={bcStyles.readMore}>{t('readMore')}</Text>
                 )}
               </>
             ) : null}
@@ -482,6 +484,7 @@ function detectRunners(stocks) {
 }
 
 function RunnerBar({ stocks, onPress }) {
+  const { t } = useLanguage();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [runners, setRunners] = useState([]);
 
@@ -505,9 +508,9 @@ function RunnerBar({ stocks, onPress }) {
 
   return (
     <View style={rnStyles.wrapper}>
-      <Text style={rnStyles.sectionLabel}>TODAY'S TOP MOVERS</Text>
+      <Text style={rnStyles.sectionLabel}>{t('topMovers')}</Text>
       <View style={rnStyles.titleRow}>
-        <Text style={rnStyles.title}>🔥 Runners</Text>
+        <Text style={rnStyles.title}>{t('runners')}</Text>
         <Animated.View style={[rnStyles.liveBadge, { opacity: pulseAnim }]}>
           <Text style={rnStyles.liveText}>LIVE</Text>
         </Animated.View>
@@ -661,6 +664,7 @@ function detectHeatingUp(stocks) {
 }
 
 function HeatingUpBar({ stocks, onPress }) {
+  const { t } = useLanguage();
   const [heaters, setHeaters] = useState([]);
 
   useEffect(() => {
@@ -672,10 +676,10 @@ function HeatingUpBar({ stocks, onPress }) {
 
   return (
     <View style={huStyles.wrapper}>
-      <Text style={huStyles.sectionLabel}>VOLUME BUILDING</Text>
+      <Text style={huStyles.sectionLabel}>{t('volumeBuilding')}</Text>
       <View style={huStyles.titleRow}>
-        <Text style={huStyles.title}>🌡️ Heating Up</Text>
-        <Text style={huStyles.subtitle}>Building momentum</Text>
+        <Text style={huStyles.title}>{t('heatingUp')}</Text>
+        <Text style={huStyles.subtitle}>{t('buildingMomentum')}</Text>
       </View>
       <ScrollView
         horizontal
@@ -834,11 +838,20 @@ function SkeletonRow({ anim }) {
 
 // ── LeftSidebar ────────────────────────────────────────────────────────────────
 
+const CAT_TRANS_KEY = {
+  'All': 'catAll', 'Tech': 'catTech', 'Bio/Pharma': 'catBioPharma',
+  'Energy': 'catEnergy', 'Finance': 'catFinance', 'Retail': 'catRetail',
+  'Mining': 'catMining', 'Cannabis': 'catCannabis', 'EV/Auto': 'catEVAuto',
+  'AI': 'catAI',
+};
+
 function LeftSidebar({ selected, onSelect }) {
+  const { t } = useLanguage();
   return (
     <View style={sbStyles.sidebarOuter}>
       <View style={sbStyles.sidebar}>
-        {SIDEBAR_CATEGORIES.map(({ key, label }) => {
+        {SIDEBAR_CATEGORIES.map(({ key }) => {
+          const label = t(CAT_TRANS_KEY[key] || key);
           const active = selected === key;
           return (
             <TouchableOpacity
@@ -926,6 +939,7 @@ function Sparkline({ item, width, height }) {
 // ── Table components ───────────────────────────────────────────────────────────
 
 function TableHeader({ sortCol, sortDir, onSort }) {
+  const { t } = useLanguage();
   const Th = ({ colKey, label, style, align = 'left' }) => {
     const active = sortCol === colKey;
     const isRight = align === 'right';
@@ -943,13 +957,13 @@ function TableHeader({ sortCol, sortDir, onSort }) {
   };
   return (
     <View style={styles.tableHeader}>
-      <Th colKey="symbol" label="SYMBOL" style={styles.cSymbol} />
-      <Th colKey="name"   label="NAME"   style={styles.cName} />
+      <Th colKey="symbol" label={t('thSymbol')} style={styles.cSymbol} />
+      <Th colKey="name"   label={t('thName')}   style={styles.cName} />
       <View style={{ width: C.sparkline }} />
-      <Th colKey="price"  label="PRICE"  style={styles.cPrice}  align="right" />
-      <Th colKey="change" label="CHANGE" style={styles.cChange} align="right" />
-      <Th colKey="pct"    label="CHG %"  style={styles.cPct}    align="right" />
-      <Th colKey="vol"    label="VOLUME" style={styles.cVol}    align="right" />
+      <Th colKey="price"  label={t('thPrice')}  style={styles.cPrice}  align="right" />
+      <Th colKey="change" label={t('thChange')} style={styles.cChange} align="right" />
+      <Th colKey="pct"    label={t('thChgPct')} style={styles.cPct}    align="right" />
+      <Th colKey="vol"    label={t('thVolume')} style={styles.cVol}    align="right" />
     </View>
   );
 }
@@ -1099,6 +1113,7 @@ function WatchlistItem({ entry, quoteData, onOpen, onRemove }) {
 }
 
 function WatchlistPanel({ watchlist, quoteMap, input, onInputChange, onAdd, onRemove, onOpen, lastUpdated }) {
+  const { t } = useLanguage();
   const timeStr = lastUpdated
     ? lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     : null;
@@ -1109,7 +1124,7 @@ function WatchlistPanel({ watchlist, quoteMap, input, onInputChange, onAdd, onRe
       <View style={wlStyles.header}>
         <Text style={wlStyles.headerTitle}>
           <Text style={{ color: '#f5a623' }}>⭐</Text>
-          {' Watchlist'}
+          {' '}{t('watchlist')}
         </Text>
         <Text style={wlStyles.editBtn}>Edit</Text>
       </View>
@@ -1118,7 +1133,7 @@ function WatchlistPanel({ watchlist, quoteMap, input, onInputChange, onAdd, onRe
       <View style={wlStyles.inputRow}>
         <TextInput
           style={wlStyles.input}
-          placeholder="Add ticker..."
+          placeholder={t('addTicker')}
           placeholderTextColor="#aaaaaa"
           value={input}
           onChangeText={onInputChange}
@@ -1138,8 +1153,8 @@ function WatchlistPanel({ watchlist, quoteMap, input, onInputChange, onAdd, onRe
         {watchlist.length === 0 ? (
           <View style={wlStyles.empty}>
             <Text style={wlStyles.emptyIcon}>⭐</Text>
-            <Text style={wlStyles.emptyTitle}>Add stocks to track</Text>
-            <Text style={wlStyles.emptyHint}>{'Type a ticker above\nto get started'}</Text>
+            <Text style={wlStyles.emptyTitle}>{t('addStocksToTrack')}</Text>
+            <Text style={wlStyles.emptyHint}>{t('typeTickerToStart')}</Text>
           </View>
         ) : (
           watchlist.map(entry => (
@@ -1157,7 +1172,7 @@ function WatchlistPanel({ watchlist, quoteMap, input, onInputChange, onAdd, onRe
       {/* Footer */}
       {timeStr && (
         <View style={wlStyles.footer}>
-          <Text style={wlStyles.footerText}>Updated {timeStr} · 30s refresh</Text>
+          <Text style={wlStyles.footerText}>{t('wlUpdated')} {timeStr} · {t('wlRefresh')}</Text>
         </View>
       )}
     </View>
@@ -1167,6 +1182,15 @@ function WatchlistPanel({ watchlist, quoteMap, input, onInputChange, onAdd, onRe
 // ── HomeScreen ─────────────────────────────────────────────────────────────────
 
 export default function HomeScreen({ navigation }) {
+  const { t } = useLanguage();
+
+  const TABS = [
+    { key: 'active',   label: t('mostActive') },
+    { key: 'trending', label: t('trendingNow') },
+    { key: 'gainers',  label: t('topGainers') },
+    { key: 'losers',   label: t('topLosers') },
+  ];
+
   const [gainers, setGainers]         = useState([]);
   const [losers, setLosers]           = useState([]);
   const [indices, setIndices]         = useState([]);
@@ -1584,13 +1608,13 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.heroSection}>
           <View style={styles.goldDivider} />
           <Text style={styles.heroTitle}>
-            <Text style={{ color: '#0a1628' }}>{"What's on your mind "}</Text>
-            <Text style={{ color: '#f5a623' }}>today?</Text>
+            <Text style={{ color: '#0a1628' }}>{t('heroTitle1')}</Text>
+            <Text style={{ color: '#f5a623' }}>{t('heroTitle2')}</Text>
           </Text>
           <View style={styles.heroSearchWrap}>
             <TextInput
               style={styles.heroInput}
-              placeholder="Ask about the market or search a ticker..."
+              placeholder={t('heroSearchPlaceholder')}
               placeholderTextColor="#aaaaaa"
               value={search}
               onChangeText={setSearch}
@@ -1651,7 +1675,7 @@ export default function HomeScreen({ navigation }) {
               {loading ? (
                 <>
                   <View style={styles.countStrip}>
-                    <Text style={styles.countText}>Loading market data...</Text>
+                    <Text style={styles.countText}>{t('loadingMarketData')}</Text>
                     <View style={styles.liveBadge}>
                       <Animated.View style={[styles.liveDot, { opacity: liveDotAnim }]} />
                       <Text style={styles.countLive}>LIVE</Text>
@@ -1665,8 +1689,8 @@ export default function HomeScreen({ navigation }) {
                 <View style={styles.tableEmpty}>
                   <Text style={styles.tableEmptyText}>
                     {selectedSector === 'All'
-                      ? 'No data available'
-                      : `No ${selectedSector} stocks in current list`}
+                      ? t('noDataAvailable')
+                      : `${t(CAT_TRANS_KEY[selectedSector] || selectedSector)} ${t('noSectorStocks')}`}
                   </Text>
                 </View>
               ) : (
@@ -1674,12 +1698,12 @@ export default function HomeScreen({ navigation }) {
                   <View style={styles.countStrip}>
                     <View>
                       <Text style={styles.countText}>
-                        <Text style={styles.countBold}>{visibleData.length}</Text> of{' '}
-                        <Text style={styles.countBold}>{listData.length}</Text> stocks
+                        <Text style={styles.countBold}>{visibleData.length}</Text> {t('stocksOf')}{' '}
+                        <Text style={styles.countBold}>{listData.length}</Text> {t('stocksLabel')}
                       </Text>
                       {lastUpdatedStr && (
                         <Text style={styles.countUpdated}>
-                          Updated {lastUpdatedStr} ET · {et.statusLabel}
+                          {t('updatedLabel')} {lastUpdatedStr} ET · {et.statusLabel}
                         </Text>
                       )}
                     </View>
@@ -1697,14 +1721,14 @@ export default function HomeScreen({ navigation }) {
 
                   {hasMore && (
                     <TouchableOpacity style={styles.loadMoreBtn} onPress={handleLoadMore} activeOpacity={0.7}>
-                      <Text style={styles.loadMoreText}>Ver más ({listData.length - visibleCount} restantes)</Text>
+                      <Text style={styles.loadMoreText}>{t('loadMore')} ({listData.length - visibleCount})</Text>
                       <Text style={styles.loadMoreArrow}>↓</Text>
                     </TouchableOpacity>
                   )}
 
                   {!hasMore && (
                     <View style={styles.tableFooter}>
-                      <Text style={styles.tableFooterText}>All {listData.length} stocks shown</Text>
+                      <Text style={styles.tableFooterText}>{t('allShown')} {listData.length} {t('allShownSuffix')}</Text>
                     </View>
                   )}
                 </>
