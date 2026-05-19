@@ -129,7 +129,12 @@ export function AuthProvider({ children }) {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // INITIAL_SESSION fires when Supabase restores the session from storage —
+      // getSession() above already handled it, so skip here to avoid a second
+      // state update that resets the Stack navigator to its initial route.
+      if (event === 'INITIAL_SESSION') return;
+
       const u = mapUser(session?.user ?? null);
       // Set profileLoading BEFORE setUser so both land in the same render —
       // prevents App.js from seeing user!=null + profile==null and flashing Onboarding.
