@@ -614,12 +614,19 @@ app.post('/api/chat', async (req, res) => {
   try {
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      ...(systemInstruction ? { systemInstruction } : {}),
       generationConfig: { maxOutputTokens: Math.max(Number(max_tokens) || 2400, 2400), temperature },
-      tools: [{ googleSearch: {} }],
     });
 
-    const chat = model.startChat({ history });
+    const contents = [
+      ...history,
+      { role: 'user', parts: [{ text: lastMsg.content }] },
+    ];
+
+    const callConfig = {
+      contents,
+      tools: [{ googleSearch: {} }],
+      ...(systemInstruction ? { systemInstruction } : {}),
+    };
 
     if (stream) {
       const controller = new AbortController();
@@ -627,7 +634,7 @@ app.post('/api/chat', async (req, res) => {
 
       try {
         // Delay header flush until we have a successful stream — allows retry on 503
-        const result = await withRetry(() => chat.sendMessageStream(lastMsg.content), 'stream');
+        const result = await withRetry(() => model.generateContentStream(callConfig), 'stream');
 
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
@@ -655,7 +662,7 @@ app.post('/api/chat', async (req, res) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 110000);
     const result = await withRetry(() => Promise.race([
-      chat.sendMessage(lastMsg.content),
+      model.generateContent(callConfig),
       new Promise((_, reject) =>
         controller.signal.addEventListener('abort', () => reject(new Error('Gemini timeout after 55s')))
       ),
