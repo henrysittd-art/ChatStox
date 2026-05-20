@@ -461,8 +461,13 @@ async function fetchTickerSnapshot(ticker) {
     const price     = snap.lastTrade?.p ?? snap.day?.c ?? snap.prevDay?.c ?? 0;
     const changePct = snap.todaysChangePerc ?? 0;
     const volume    = snap.day?.v ?? 0;
+    const open      = snap.day?.o ?? 0;
+    const high      = snap.day?.h ?? 0;
+    const low       = snap.day?.l ?? 0;
+    const vwap      = snap.day?.vw ?? 0;
+    const prevClose = snap.prevDay?.c ?? 0;
     console.log('[TICKER ENRICHMENT]', ticker, JSON.stringify({
-      price: Number(price),
+      price: Number(price), open: Number(open), high: Number(high), low: Number(low), vwap: Number(vwap),
       splits: splits.map(s => `${s.split_to}-for-${s.split_from}${s.split_to < s.split_from ? ' reverse split' : ''} on ${s.execution_date}`),
       newsCount: news.length,
       description: ref?.description?.substring(0, 50),
@@ -472,6 +477,11 @@ async function fetchTickerSnapshot(ticker) {
       price:        Number(price),
       changePct:    Number(changePct),
       volume:       Number(volume),
+      open:         Number(open),
+      high:         Number(high),
+      low:          Number(low),
+      vwap:         Number(vwap),
+      prevClose:    Number(prevClose),
       marketStatus: marketStatus,
       sector:       sectorFromRef(ref),
       description:  ref?.description ? ref.description.slice(0, 200) : null,
@@ -565,14 +575,38 @@ app.post('/api/chat', async (req, res) => {
       const r = results[i];
       const ticker = mentionedTickers[i];
       if (r.status === 'fulfilled' && r.value) {
-        const { ticker: t, price, changePct, volume, marketStatus, sector, description, employees, listDate, splits, divs, news } = r.value;
+        const { ticker: t, price, changePct, volume, open, high, low, vwap, prevClose, marketStatus, sector, description, employees, listDate, splits, divs, news } = r.value;
         const sign = changePct >= 0 ? '+' : '';
+        const fmt  = (v) => v < 1 ? v.toFixed(4) : v.toFixed(2);
         const block = [];
         block.push(`REAL-TIME DATA for ${t}:`);
         if (marketStatus) block.push(`Market status: ${marketStatus}`);
-        let priceLine = `Price: $${price.toFixed(price < 1 ? 4 : 2)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`;
+        let priceLine = `Price: $${fmt(price)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`;
         if (sector) priceLine += `, Sector: ${sector}`;
         block.push(priceLine);
+        // Intraday OHLC
+        const ohlcParts = [];
+        if (open)      ohlcParts.push(`Open: $${fmt(open)}`);
+        if (high)      ohlcParts.push(`High: $${fmt(high)}`);
+        if (low)       ohlcParts.push(`Low: $${fmt(low)}`);
+        if (vwap)      ohlcParts.push(`VWAP: $${fmt(vwap)}`);
+        if (prevClose) ohlcParts.push(`Prev Close: $${fmt(prevClose)}`);
+        if (ohlcParts.length) block.push(`OHLC: ${ohlcParts.join(' | ')}`);
+        // Pre-computed KEY LEVELS for S/R framework
+        if (high && low && vwap) {
+          const priceVsVwap = price >= vwap ? 'ABOVE VWAP (bullish bias)' : 'BELOW VWAP (bearish bias)';
+          block.push(`KEY LEVELS: S1=$${fmt(low)} S2=${prevClose ? '$' + fmt(prevClose) : 'N/A'} R1=$${fmt(high)} VWAP=$${fmt(vwap)} ${priceVsVwap}`);
+        }
+        // Pre-computed SMART STOP LOSS & TARGETS for trade setup
+        if (price > 0 && low > 0) {
+          const entry  = price;
+          const stop   = low > entry * 0.95 ? low : entry * 0.95;
+          const risk   = entry - stop;
+          const t1     = entry + risk * 1.5;
+          const t2     = entry + risk * 2.5;
+          const rr     = (risk > 0 ? (t1 - entry) / risk : 0).toFixed(1);
+          block.push(`SMART STOP LOSS & TARGETS: Entry=$${fmt(entry)} Stop=$${fmt(stop)} T1=$${fmt(t1)} T2=$${fmt(t2)} R/R=1:${rr} DayLow=$${fmt(low)} DayHigh=$${fmt(high)}`);
+        }
         if (description) block.push(`Description: ${description}`);
         const meta = [];
         if (employees) meta.push(`Employees: ${Number(employees).toLocaleString()}`);
