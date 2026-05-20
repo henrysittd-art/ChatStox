@@ -616,6 +616,7 @@ app.post('/api/chat', async (req, res) => {
       model: 'gemini-2.5-flash',
       ...(systemInstruction ? { systemInstruction } : {}),
       generationConfig: { maxOutputTokens: Math.max(Number(max_tokens) || 2400, 2400), temperature },
+      tools: [{ googleSearch: {} }],
     });
 
     const chat = model.startChat({ history });
