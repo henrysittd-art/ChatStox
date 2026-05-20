@@ -90,13 +90,12 @@ const aiMarkdownStyles = {
 
 function ChatBubble({ msg }) {
   const isUser = msg.role === 'user';
-  return (
-    <View style={[styles.bubbleWrap, isUser ? styles.bubbleRight : styles.bubbleLeft]}>
-      {!isUser && <Text style={styles.aiLabel}>CHATSTOX AI</Text>}
-      <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}>
-        {isUser ? (
-          <Text style={styles.bubbleTextUser}>{msg.content}</Text>
-        ) : msg.isStreaming && !msg.content ? (
+
+  if (!isUser) {
+    return (
+      <View style={styles.aiMsgWrap}>
+        <Text style={styles.aiLabel}>CHATSTOX AI</Text>
+        {msg.isStreaming && !msg.content ? (
           <TypingLogo />
         ) : (
           <>
@@ -104,6 +103,15 @@ function ChatBubble({ msg }) {
             {msg.isStreaming && <StreamingCursor />}
           </>
         )}
+        {msg.time ? <Text style={styles.timestamp}>{formatMessageTime(msg.time)}</Text> : null}
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.bubbleWrap, styles.bubbleRight]}>
+      <View style={[styles.bubble, styles.bubbleUser]}>
+        <Text style={styles.bubbleTextUser}>{msg.content}</Text>
       </View>
       {msg.time ? <Text style={styles.timestamp}>{formatMessageTime(msg.time)}</Text> : null}
     </View>
@@ -660,22 +668,16 @@ const styles = StyleSheet.create({
   disclaimerText:  { fontSize: 13, color: '#78350f', lineHeight: 19, fontWeight: '500' },
 
   // ── Chat Bubbles ──
-  bubbleWrap:  { maxWidth: '85%', gap: 2 },
-  bubbleLeft:  { alignSelf: 'flex-start' },
+  aiMsgWrap:   { width: '100%', paddingVertical: 6, gap: 2 },
+  bubbleWrap:  { maxWidth: '80%', gap: 2 },
   bubbleRight: { alignSelf: 'flex-end' },
   aiLabel: {
     fontSize: 10, color: '#f5a623', fontWeight: '800',
-    letterSpacing: 1.5, marginBottom: 3, textTransform: 'uppercase',
+    letterSpacing: 1.5, marginBottom: 4, textTransform: 'uppercase',
   },
   bubble: { borderRadius: 16, padding: 12 },
   bubbleUser: {
     backgroundColor: '#0a1628', borderBottomRightRadius: 4,
-  },
-  bubbleAI: {
-    backgroundColor: '#ffffff', borderBottomLeftRadius: 4,
-    borderLeftWidth: 3, borderLeftColor: '#f5a623',
-    shadowColor: '#0a1628', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07, shadowRadius: 6, elevation: 2,
   },
   bubbleTextUser: { color: '#ffffff', fontSize: 14, lineHeight: 20 },
   timestamp: { fontSize: 9, color: '#94a3b8', marginTop: 2 },

@@ -324,31 +324,35 @@ const aiMarkdownStyles = {
 
 function ChatBubble({ msg }) {
   const isUser = msg.role === 'user';
+
+  if (!isUser) {
+    return (
+      <View style={styles.aiMsgWrap}>
+        <Text style={styles.aiLabel}>✨ CHATSTOX AI</Text>
+        {msg.isStreaming && !msg.content ? (
+          <TypingLogo />
+        ) : (
+          <>
+            <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
+            {msg.isStreaming && <StreamingCursor />}
+          </>
+        )}
+        <Text style={styles.timestamp}>{formatMessageTime(msg.time)}</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={[isUser ? styles.bubbleWrapUser : styles.bubbleWrapAI, isUser ? styles.bubbleRight : styles.bubbleLeft]}>
-      {!isUser && <Text style={styles.aiLabel}>✨ CHATSTOX AI</Text>}
-      {isUser ? (
-        <LinearGradient
-          colors={['#1a2a4a', '#0a1628']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.bubbleUser}
-        >
-          <Text style={styles.bubbleTextUser}>{msg.displayContent ?? msg.content}</Text>
-        </LinearGradient>
-      ) : (
-        <View style={styles.bubbleAI}>
-          {msg.isStreaming && !msg.content ? (
-            <TypingLogo />
-          ) : (
-            <>
-              <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
-              {msg.isStreaming && <StreamingCursor />}
-            </>
-          )}
-        </View>
-      )}
-      <Text style={[styles.timestamp, isUser && { textAlign: 'right' }]}>{formatMessageTime(msg.time)}</Text>
+    <View style={[styles.bubbleWrapUser, styles.bubbleRight]}>
+      <LinearGradient
+        colors={['#1a2a4a', '#0a1628']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.bubbleUser}
+      >
+        <Text style={styles.bubbleTextUser}>{msg.displayContent ?? msg.content}</Text>
+      </LinearGradient>
+      <Text style={[styles.timestamp, { textAlign: 'right' }]}>{formatMessageTime(msg.time)}</Text>
     </View>
   );
 }
@@ -1758,13 +1762,12 @@ const styles = StyleSheet.create({
   momentumAlertText: { fontSize: 12, color: '#7c2d12', lineHeight: 17, fontWeight: '500' },
 
   // Chat bubbles
+  aiMsgWrap:    { width: '100%', paddingVertical: 6, gap: 2 },
   bubbleWrapUser: { maxWidth: '75%', gap: 2 },
-  bubbleWrapAI: { maxWidth: '85%', gap: 2 },
-  bubbleLeft: { alignSelf: 'flex-start' },
   bubbleRight: { alignSelf: 'flex-end' },
   aiLabel: {
     fontSize: 9, color: '#f5a623', fontWeight: '700',
-    letterSpacing: 0.8, marginBottom: 3, textTransform: 'uppercase',
+    letterSpacing: 0.8, marginBottom: 4, textTransform: 'uppercase',
   },
   bubbleUser: {
     borderTopLeftRadius: 16,
@@ -1772,22 +1775,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
     padding: 10,
-  },
-  bubbleAI: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 16,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: '#f5a623',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
   },
   bubbleTextUser: { color: '#ffffff', fontSize: 13, lineHeight: 18 },
   timestamp: { fontSize: 9, color: '#94a3b8', marginTop: 2 },
