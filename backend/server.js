@@ -862,10 +862,11 @@ app.post('/api/chat', async (req, res) => {
     ]), 'non-stream');
     clearTimeout(timeoutId);
     let text = result.response.text();
-    // Retry once on empty response — Gemini occasionally returns empty on first call
-    if (!text) {
-      console.warn('[/api/chat] Empty response from Gemini, retrying once...');
-      await new Promise(r => setTimeout(r, 1500));
+    // Retry up to 3x on empty response — Gemini occasionally returns blank on first call
+    for (let attempt = 1; !text && attempt <= 3; attempt++) {
+      const delay = attempt * 1500;
+      console.warn(`[/api/chat] Empty response from Gemini, retry ${attempt}/3 in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
       const retryResult = await model.generateContent(callConfig).catch(() => null);
       if (retryResult) text = retryResult.response.text() || '';
     }
