@@ -562,8 +562,12 @@ app.post('/api/chat', async (req, res) => {
   // In general chat (no currentTicker) always include SPY and QQQ as market proxies so the AI knows
   // whether the market is up/down/closed and can answer market-wide questions accurately.
   const msgTickers = extractTickersFromMessage(lastMsg.content);
+  // If user explicitly mentions a ticker different from the loaded stock, enrich it first
+  const msgPrimary = msgTickers.length > 0 ? msgTickers[0] : null;
   const mentionedTickers = currentTicker
-    ? [currentTicker, ...msgTickers.filter(t => t !== currentTicker)].slice(0, 3)
+    ? (msgPrimary && msgPrimary !== currentTicker
+        ? [msgPrimary, currentTicker, ...msgTickers.slice(1).filter(t => t !== currentTicker)].slice(0, 3)
+        : [currentTicker, ...msgTickers.filter(t => t !== currentTicker)].slice(0, 3))
     : ['SPY', 'QQQ', ...msgTickers.filter(t => t !== 'SPY' && t !== 'QQQ')].slice(0, 4);
   let realtimeBlock = '';
   let noDataBlock = '';
