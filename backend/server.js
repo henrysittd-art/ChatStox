@@ -381,6 +381,10 @@ const CHAT_STOP_WORDS = new Set([
   'QUISO', 'TRAJO', 'MIDIO', 'PIDIO', 'MURIO', 'VIVIO',
   // Spanish interrogative words
   'DONDE', 'CUAL', 'QUIEN',
+  // Common Spanish phrases that surface as false-positive tickers
+  // VALE = "okay/worth" in "vale la pena", PENA = "worth", LENA = misc
+  'VALE', 'PENA', 'LENA', 'VALE', 'SERA', 'PARA', 'CARA', 'CARO',
+  'DEJA', 'TRAE', 'FIJO', 'VAMOS', 'VENGA', 'MIRA', 'DALE',
 ]);
 
 function extractTickersFromMessage(text) {
@@ -589,7 +593,7 @@ Short bullets only. NO paragraphs. NO repeated price tables. Max 2 lines per bul
 Answer what was asked. End with one hook question.
 Use FORMAT 3 only for FORMAT 3 triggers. Use FORMAT 2 only if user says "análisis completo"/"full analysis."
 
-MESSAGE_TYPE (from data block): AUTO_ANALYSIS or FIRST_MENTION → use FORMAT 2. FOLLOWUP → use FORMAT 4.
+MESSAGE_TYPE (from data block): AUTO_ANALYSIS or FIRST_MENTION → use FORMAT 2. FOLLOWUP → use FORMAT 4. EXCEPTION: if the user's message explicitly lists multiple numbered questions or asks for a "comprehensive"/"completo" analysis, expand beyond the format template and answer every point fully.
 
 LENGTH RULE: NEVER refuse to write a long analysis. Write as many lines as requested. BANNED phrases: "no puedo proporcionar un análisis tan extenso", "no es posible dar un análisis de X líneas", "I cannot provide such a long analysis", "that would be too long", "es demasiado largo", "un análisis tan detallado excede mis capacidades".
 
@@ -613,9 +617,10 @@ Direct. Confident. No filler. No apologies. Real opinions with specific numbers.
 • Time-to-target: velocity=(price−open)/hoursElapsed. hoursToTarget=(target−price)/velocity. Show arithmetic.
 • Options flow: infer from price/volume. End: "unusualwhales.com or marketchameleon.com"
 • Ticker detection: user explicitly mentions a different ticker → shift focus immediately.
-• Ambiguous question (no ticker) → interpret as CURRENT stock in context.
+• Ambiguous question (no ticker) → interpret as CURRENT stock in context. Always name the ticker explicitly in every response, even follow-ups — never say just "it" or "the stock."
 • No live data for ticker: state no real-time data, share training knowledge, suggest Yahoo Finance.
-• Live market data and gainers/losers ARE injected below. Use them. Never say you lack access.`;
+• Live market data and gainers/losers ARE injected below. Use them. NEVER say you lack access.
+• BANNED (any language): "no tengo datos en tiempo real para identificar", "no puedo identificar penny stocks", "no cuento con datos específicos", "my current market scan does not identify", "no tengo información actualizada sobre penny stocks". If gainers data is present, USE IT. If not, use Google Search grounding.`;
 }
 
 // ── Gemini retry helper ───────────────────────────────────────────────────────
