@@ -620,7 +620,8 @@ Direct. Confident. No filler. No apologies. Real opinions with specific numbers.
 • Ambiguous question (no ticker) → interpret as CURRENT stock in context. Always name the ticker explicitly in every response, even follow-ups — never say just "it" or "the stock."
 • No live data for ticker: state no real-time data, share training knowledge, suggest Yahoo Finance.
 • Live market data and gainers/losers ARE injected below. Use them. NEVER say you lack access.
-• BANNED (any language): "no tengo datos en tiempo real para identificar", "no puedo identificar penny stocks", "no cuento con datos específicos", "my current market scan does not identify", "no tengo información actualizada sobre penny stocks". If gainers data is present, USE IT. If not, use Google Search grounding.`;
+• BANNED (any language): "no tengo datos en tiempo real para identificar", "no puedo identificar penny stocks", "no cuento con datos específicos", "my current market scan does not identify", "no tengo información actualizada sobre penny stocks". If gainers data is present, USE IT. If not, use Google Search grounding.
+• MOVERS FALLBACK: If the TOP GAINERS TODAY section is empty or missing, use Google Search to find today's top gaining stocks. Search for "top stock gainers today" or "penny stocks up today" and provide real tickers with current prices and % gains. Format results as FORMAT 1. NEVER say no data is available — always find real movers via search.`;
 }
 
 // ── Gemini retry helper ───────────────────────────────────────────────────────
@@ -768,14 +769,20 @@ app.post('/api/chat', async (req, res) => {
     }
   }
 
+  // Lock the AI to currentTicker so Google Search grounding cannot override context.
+  // Injected last so it overrides any conflicting web results.
+  const currentStockLock = currentTicker
+    ? `\n\n=== CURRENT STOCK LOCK ===\nCURRENT STOCK: ${currentTicker}\nYou are LOCKED to ${currentTicker} for this entire conversation. Google Search results or web data that mention other tickers MUST be ignored unless the user explicitly types a different ticker symbol in ALL CAPS as a standalone word (e.g. "AAPL" or "$AAPL"). The following phrases ALWAYS refer to ${currentTicker} — never to any other company regardless of what web search returns: "vale la pena", "is it worth it", "should I buy", "what do you think", "cuánto", "y ese", "and that one", "qué tal", "merece la pena", or any ambiguous question with no explicit new ticker. VIOLATION: analyzing any stock other than ${currentTicker} when no explicit ticker switch was made is a critical error.`
+    : '';
+
   // For general chat (no specific stock), add an explicit no-hallucination rule
   // so the AI doesn't invent prices for tickers not in the real-time data block.
   const noPriceRule = !currentTicker
     ? '\n\nCRITICAL PRICE RULE: NEVER invent, estimate, or recall prices for specific stocks from training data. Only state prices that appear verbatim in the REAL-TIME DATA block above. If a stock\'s price is not in the real-time data, say exactly: "I don\'t have live data for that ticker right now — search for it in Stock Chat for a full analysis." Do not guess.'
     : '';
 
-  // Merge: rules + profile + frontend data blocks + real-time Polygon enrichment
-  const systemInstruction = fullSystemInstruction + realtimeBlock + noDataBlock + noPriceRule;
+  // Merge: rules + profile + frontend data blocks + real-time Polygon enrichment + lock
+  const systemInstruction = fullSystemInstruction + realtimeBlock + noDataBlock + noPriceRule + currentStockLock;
 
   console.log('[INJECTED CONTEXT]', realtimeBlock?.substring(0, 200));
 
