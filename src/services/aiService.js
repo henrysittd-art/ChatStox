@@ -21,17 +21,12 @@ const AI_BLACKLIST = new Set(['AGNT']);
 
 function buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings }) {
 
-  // Strip blacklisted tickers from market data arrays before they reach any prompt block
   gainers = (gainers || []).filter(s => !AI_BLACKLIST.has((s.ticker || '').toUpperCase()));
   losers  = (losers  || []).filter(s => !AI_BLACKLIST.has((s.ticker || '').toUpperCase()));
   volume  = (volume  || []).filter(s => !AI_BLACKLIST.has((s.ticker || '').toUpperCase()));
 
-  // ── Temporal context — injected first in every prompt ────────────────────────
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  const currentYear = new Date().getFullYear();
-  const currentContext = `TODAY'S DATE: ${today}. You are operating in ${currentYear}. Your training data goes up to early 2025. For events after early 2025, rely on the live market data and news feed injected below and acknowledge uncertainty about very recent developments.`;
 
-  // ── Shared volume formatter ────────────────────────────────────────────────
   const fmtVol = (n) => {
     n = Number(n);
     if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
@@ -40,43 +35,18 @@ function buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details,
     return String(n);
   };
 
-  // Price formatter: 4 decimals for sub-$1, 2 decimals otherwise
   const fmtP = (n) => {
     const num = Number(n);
     return num > 0 && num < 1 ? `$${num.toFixed(4)}` : `$${num.toFixed(2)}`;
   };
 
-  // Standard list row: TICKER - Company Name | $price | +/-% | Vol: XM
   const fmtRow = (s) => {
     const pct = Number(s.changePercent);
     const sign = pct >= 0 ? '+' : '';
     return `${s.ticker} - ${s.name || s.ticker} | ${fmtP(s.price)} | ${sign}${pct.toFixed(2)}% | Vol: ${fmtVol(s.volume)}`;
   };
 
-  // ── Override block — must appear FIRST in every prompt ───────────────────────
-  // For single-stock chat with real data: inject explicit price at the very top so
-  // the model cannot substitute training-data prices for the current quote.
-  const OVERRIDE = (stock && !isGeneral && Number(stock.price) > 0)
-    ? `⚠️ LIVE PRICE OVERRIDE ⚠️
-CRITICAL — ${stock.ticker} CONFIRMED LIVE PRICE (real-time market data):
-  Price : ${fmtP(stock.price)}
-  Change: ${Number(stock.changePercent) >= 0 ? '+' : ''}${Number(stock.changePercent).toFixed(2)}%
-  Volume: ${fmtVol(stock.volume)}
-THIS IS THE ONLY CORRECT CURRENT PRICE FOR ${stock.ticker}.
-Any other price from your training data is outdated — do NOT use it under any circumstance.
-All additional data below was also fetched live. Use these EXACT numbers.
-This override applies ONLY to real-time market data. It does NOT restrict general financial knowledge.`
-    : `⚠️ LIVE PRICE OVERRIDE ⚠️
-The stock PRICES, VOLUMES, and % CHANGES listed below come from LIVE MARKET FEEDS updated seconds ago.
-They SUPERSEDE training-data prices. USE THESE EXACT NUMBERS for anything price-related.
-DO NOT recall training-data prices for current quotes — ONLY use the prices shown in this prompt.
-This override applies ONLY to real-time market data (price, volume, change%, VWAP, high, low, open).
-It does NOT restrict your general financial knowledge — see TWO TYPES OF KNOWLEDGE below.`;
-
-  // Rules/personality/format are now owned by the backend (server.js SYSTEM_RULES).
-  // Frontend only sends data blocks + language + profile as metadata fields.
-
-  // ── GENERAL CHAT (no specific stock loaded) ────────────────────────────────
+  // ── GENERAL CHAT ─────────────────────────────────────────────────────────────
   if (isGeneral) {
 
     // ── DEBUG: log what's coming in ───────────────────────────────────────────
@@ -153,49 +123,20 @@ It does NOT restrict your general financial knowledge — see TWO TYPES OF KNOWL
         return `${icon} ${sec}: ${d.count} stock${d.count > 1 ? 's' : ''} in top gainers (${d.tickers.join(', ')})`;
       });
     const sectorBlock = sectorLines.length > 0
-      ? `\n━━━ SECTOR ROTATION (from top gainers) ━━━\n${sectorLines.join('\n')}\nWhen asked "what sectors are leading?" or "qué sectores lideran?" — use EXACTLY this breakdown.`
+      ? `\nSECTOR ROTATION:\n${sectorLines.join('\n')}`
       : '';
 
-    return `${currentContext}
+    return `DATE: ${today}
 
-${OVERRIDE}
-
-━━━ LIVE MARKET DATA (USE THESE EXACT NUMBERS) ━━━
-
-TOP GAINERS TODAY (sorted by % gain):
+TOP GAINERS TODAY:
 ${gainersBlock}
 
-TOP LOSERS TODAY (sorted by % loss):
-${losersBlock}
-${sectorBlock}
-
-━━━ DATA USAGE MAP (match the user's question to the correct section above) ━━━
-• "most active" / "más activas" / "más movidas" / "más volumen" / "hottest" / "calientes" → use TOP GAINERS (sort by highest volume × % gain)
-• "top gainers" / "ganadores" / "más subidas" / "las que más suben" → use TOP GAINERS TODAY
-• "top losers" / "perdedoras" / "más bajas" / "las que más bajan" → use TOP LOSERS TODAY
-• "penny stocks" / "momentum plays" / "hot movers" / "acciones baratas" → use TOP GAINERS: highest % gain with volume over 1M, price over $1
-• sectors / sectores / qué sectores lideran / what sectors are leading → use SECTOR ROTATION section
-• "recommendations" / "qué comprar" / "mejores picks" → recommend from TOP GAINERS
-• Any general market question → synthesize from all sections
-
-━━━ ABSOLUTE PROHIBITIONS ━━━
-NEVER say: "no tengo acceso", "no puedo acceder", "I don't have access", "no tengo una lista específica", "no tengo información", "no cuento con datos", "no tengo acceso a datos en tiempo real", or any phrase suggesting data is unavailable.
-NEVER say any variation of: "no puedo proporcionar un análisis tan extenso", "no es posible dar un análisis de X líneas", "I cannot provide such a long analysis", "that would be too long", "no puedo escribir 100 líneas", "es demasiado largo", "un análisis tan detallado excede", or any refusal based on length.
-The live market data IS in this prompt. Your general financial knowledge IS in your training. Use both.
-NEVER invent stocks not listed above for market-mover questions. NEVER use training-data prices for current quotes.
-
-━━━ INSTRUCTIONS ━━━
-• For live market questions (gainers, losers, movers, volume): use ONLY the data above.
-• When user asks for penny stocks, hot movers, or momentum plays: use TOP GAINERS — filter for highest % gain with volume > 1M and price > $1. Use FORMAT 1. NEVER say there are none if the list has stocks.
-• When user asks about "most active" or "hottest": use TOP GAINERS sorted by volume × % gain. Give the list in FORMAT 1.
-• When user asks about earnings, fundamentals, company history, or general financial knowledge for any stock: answer from your training knowledge confidently. These are TYPE 2 questions — you have the knowledge.
-• When user asks about a specific stock's CURRENT price that is NOT in the data above: say "Para ver el precio actual de [TICKER] necesito cargarlo en su propio chat — búscalo en el buscador." Do NOT refuse to share general knowledge about that stock.
-• When user asks about the overall market: use gainers, losers, and volume to give a directional view.
-• Respond in the SAME language as the user's message.`;
+TOP LOSERS TODAY:
+${losersBlock}${sectorBlock}`;
   }
 
-  // ── SINGLE STOCK CHAT ──────────────────────────────────────────────────────
-  if (!stock) return `${currentContext}\n\n${OVERRIDE}`;
+  // ── SINGLE STOCK CHAT ────────────────────────────────────────────────────────
+  if (!stock) return `DATE: ${today}`;
 
   const name = details?.name || stock.ticker;
 
@@ -220,18 +161,18 @@ NEVER invent stocks not listed above for market-mover questions. NEVER use train
   const _loWick  = Math.min(_o, _c) - _l;
   let _candlePat, _candleBias;
   if (_range < 0.0001) {
-    _candlePat = 'Doji (range too small to classify)'; _candleBias = 'neutral';
+    _candlePat = 'Doji'; _candleBias = 'neutral';
   } else {
     const bPct = _body / _range;
     const uPct = _upWick / _range;
     const lPct = _loWick / _range;
-    if (bPct < 0.1) { _candlePat = 'Doji — indecision, buyers and sellers equal'; _candleBias = 'neutral'; }
-    else if (!_isGreen && uPct > 0.6) { _candlePat = 'Shooting Star — bearish reversal (long upper wick, small red body at bottom)'; _candleBias = 'bearish'; }
-    else if (_isGreen  && lPct > 0.6) { _candlePat = 'Hammer — bullish reversal (long lower wick, small green body at top)'; _candleBias = 'bullish'; }
-    else if (!_isGreen && lPct > 0.6) { _candlePat = 'Hanging Man — bearish warning despite lower wick'; _candleBias = 'neutral'; }
-    else if (_isGreen  && bPct > 0.7)  { _candlePat = 'Bullish Marubozu — buyers in control all session'; _candleBias = 'bullish'; }
-    else if (!_isGreen && bPct > 0.7)  { _candlePat = 'Bearish Marubozu — sellers in control all session'; _candleBias = 'bearish'; }
-    else { _candlePat = _isGreen ? 'Bullish (green) candle' : 'Bearish (red) candle'; _candleBias = _isGreen ? 'bullish' : 'bearish'; }
+    if (bPct < 0.1) { _candlePat = 'Doji'; _candleBias = 'neutral'; }
+    else if (!_isGreen && uPct > 0.6) { _candlePat = 'Shooting Star'; _candleBias = 'bearish'; }
+    else if (_isGreen  && lPct > 0.6) { _candlePat = 'Hammer'; _candleBias = 'bullish'; }
+    else if (!_isGreen && lPct > 0.6) { _candlePat = 'Hanging Man'; _candleBias = 'neutral'; }
+    else if (_isGreen  && bPct > 0.7)  { _candlePat = 'Bullish Marubozu'; _candleBias = 'bullish'; }
+    else if (!_isGreen && bPct > 0.7)  { _candlePat = 'Bearish Marubozu'; _candleBias = 'bearish'; }
+    else { _candlePat = _isGreen ? 'Bullish candle' : 'Bearish candle'; _candleBias = _isGreen ? 'bullish' : 'bearish'; }
   }
 
   // ── S/R level computation ─────────────────────────────────────────────────────
@@ -263,7 +204,7 @@ NEVER invent stocks not listed above for market-mover questions. NEVER use train
     const label = hPct <= 10 ? `Near HOD (top ${hPct.toFixed(0)}% of range)`
                 : lPct <= 10 ? `Near LOD (bottom ${lPct.toFixed(0)}% of range)`
                 : `Mid-range (${lPct.toFixed(0)}% from LOD, ${hPct.toFixed(0)}% from HOD)`;
-    return `\nRange Position    : ${label}`;
+    return `\nRange Position: ${label}`;
   })() : '';
 
   // ── AH/PM session data ───────────────────────────────────────────────────────
@@ -275,9 +216,9 @@ NEVER invent stocks not listed above for market-mover questions. NEVER use train
   let _sessionLine = '';
   if (_ahChg !== null && _ahChgPct !== null && Math.abs(_ahChg) > 0.001) {
     const _ahPriceStr = _ahPrice && _ahPrice > 0 ? `${fmtP(_ahPrice)} | ` : '';
-    _sessionLine = `\nAfter Hours    : ${_ahPriceStr}${_ahChg >= 0 ? '+' : '-'}$${Math.abs(_ahChg).toFixed(2)} (${_ahChgPct >= 0 ? '+' : ''}${_ahChgPct.toFixed(2)}%) vs RTH close`;
+    _sessionLine = `\nAfter Hours: ${_ahPriceStr}${_ahChg >= 0 ? '+' : '-'}$${Math.abs(_ahChg).toFixed(2)} (${_ahChgPct >= 0 ? '+' : ''}${_ahChgPct.toFixed(2)}%) vs RTH close`;
   } else if (_preChg !== null && _preChgPct !== null && Math.abs(_preChg) > 0.001) {
-    _sessionLine = `\nPre-Market     : ${_preChg >= 0 ? '+' : '-'}$${Math.abs(_preChg).toFixed(2)} (${_preChgPct >= 0 ? '+' : ''}${_preChgPct.toFixed(2)}%) vs prev close`;
+    _sessionLine = `\nPre-Market: ${_preChg >= 0 ? '+' : '-'}$${Math.abs(_preChg).toFixed(2)} (${_preChgPct >= 0 ? '+' : ''}${_preChgPct.toFixed(2)}%) vs prev close`;
   }
 
   // ── Smart Stop/Target precompute (mirrors FORMAT 3 logic exactly) ────────────
@@ -299,44 +240,35 @@ NEVER invent stocks not listed above for market-mover questions. NEVER use train
   const _rr2val = _stopDistST > 0 ? (_t2ST - _entryP) / _stopDistST : 0;
   const smartSetupBlock = (_entryP > 0 && _stopDistST > 0) ? `
 
-━━━ SMART STOP LOSS & TARGETS ━━━
-Use EXACTLY these pre-computed numbers in FORMAT 3 — do NOT recalculate:
-Entry (current price) : ${fmtP(_entryP)}
-Smart Stop Loss       : ${fmtP(_smartStop)} (${((_smartStop - _entryP) / _entryP * 100).toFixed(1)}% from entry) — ${_stopMethod}
-Target 1              : ${fmtP(_t1ST)} (+${((_t1ST - _entryP) / _entryP * 100).toFixed(1)}%) — R/R 1:${_rr1val.toFixed(1)}
-Target 2              : ${fmtP(_t2ST)} (+${((_t2ST - _entryP) / _entryP * 100).toFixed(1)}%) — R/R 1:${_rr2val.toFixed(1)}` : '';
+SMART STOP LOSS & TARGETS:
+Entry: ${fmtP(_entryP)}
+Stop Loss: ${fmtP(_smartStop)} (${((_smartStop - _entryP) / _entryP * 100).toFixed(1)}%) — ${_stopMethod}
+Target 1: ${fmtP(_t1ST)} (+${((_t1ST - _entryP) / _entryP * 100).toFixed(1)}%) — R/R 1:${_rr1val.toFixed(1)}
+Target 2: ${fmtP(_t2ST)} (+${((_t2ST - _entryP) / _entryP * 100).toFixed(1)}%) — R/R 1:${_rr2val.toFixed(1)}` : '';
 
-  const marketData = `━━━ LIVE DATA: ${stock.ticker} — ${name} ━━━
-Precio actual : ${fmtP(stock.price)}
-Cambio hoy    : ${Number(stock.changePercent) >= 0 ? '+' : ''}${Number(stock.changePercent).toFixed(2)}% (${fmtP(stock.todaysChange ?? 0)})
-Volumen       : ${fmtVol(stock.volume)}
-Apertura      : ${fmtP(stock.open)}
-Máximo del día: ${fmtP(stock.dayHigh)}
-Mínimo del día: ${fmtP(stock.dayLow)}
-VWAP          : ${fmtP(stock.vwap)}
-Cierre previo : ${fmtP(stock.previousClose)}${_sessionLine}
+  const marketData = `LIVE DATA: ${stock.ticker} — ${name}
+Price: ${fmtP(stock.price)} | Change: ${Number(stock.changePercent) >= 0 ? '+' : ''}${Number(stock.changePercent).toFixed(2)}% | Vol: ${fmtVol(stock.volume)}
+Open: ${fmtP(stock.open)} | High: ${fmtP(stock.dayHigh)} | Low: ${fmtP(stock.dayLow)} | VWAP: ${fmtP(stock.vwap)} | Prev Close: ${fmtP(stock.previousClose)}${_sessionLine}
 
-━━━ CANDLE ANALYSIS ━━━
-Open: ${fmtP(_o)} | High: ${fmtP(_h)} | Low: ${fmtP(_l)} | Close/Current: ${fmtP(_c)}
-Pattern: ${_candlePat} [${_candleBias} bias]
-Body: ${(_body / (_range || 1) * 100).toFixed(0)}% of range | Upper wick: ${(_upWick / (_range || 1) * 100).toFixed(0)}% | Lower wick: ${(_loWick / (_range || 1) * 100).toFixed(0)}%${_gapLine}
+CANDLE: ${_candlePat} [${_candleBias} bias]
+Body: ${(_body / (_range || 1) * 100).toFixed(0)}% | Upper wick: ${(_upWick / (_range || 1) * 100).toFixed(0)}% | Lower wick: ${(_loWick / (_range || 1) * 100).toFixed(0)}%${_gapLine}
 
-━━━ KEY LEVELS ━━━
-S1 — Today Low    : ${fmtP(_l)}
-S2 — Prev Day Low : ${_prevL > 0 ? fmtP(_prevL) : 'N/A (prev data unavailable)'}
-R1 — Today High   : ${fmtP(_h)}
-R2 — Prev Day High: ${_prevH > 0 ? fmtP(_prevH) : 'N/A (prev data unavailable)'}
-VWAP              : ${fmtP(_vwapN)} (${_vwapBias})
-Psychological     : ${fmtP(_psych0)} / ${fmtP(_psych1)} (nearest support) / ${fmtP(_psych2)} (nearest resistance)${_rangePosLine}`;
+KEY LEVELS:
+S1 (Today Low): ${fmtP(_l)}
+S2 (Prev Day Low): ${_prevL > 0 ? fmtP(_prevL) : 'N/A'}
+R1 (Today High): ${fmtP(_h)}
+R2 (Prev Day High): ${_prevH > 0 ? fmtP(_prevH) : 'N/A'}
+VWAP: ${fmtP(_vwapN)} [${_vwapBias}]
+Psychological: ${fmtP(_psych0)} / ${fmtP(_psych1)} / ${fmtP(_psych2)}${_rangePosLine}`;
 
   const companyData = details ? `
-━━━ COMPANY: ${name} ━━━
-Sector      : ${details.sector || 'N/A'}
-Exchange    : ${details.exchange || 'N/A'}
-Market Cap  : ${formatNumber(details.marketCap)} — ${stockTier}
-Employees   : ${details.employees ? details.employees.toLocaleString() : 'N/A'}
-Description : ${details.description ? details.description.slice(0, 250) + '…' : 'N/A'}` : `
-Stock Tier  : ${stockTier}`;
+
+COMPANY: ${name}
+Sector: ${details.sector || 'N/A'} | Exchange: ${details.exchange || 'N/A'} | Market Cap: ${formatNumber(details.marketCap)} — ${stockTier}
+Employees: ${details.employees ? details.employees.toLocaleString() : 'N/A'}
+Description: ${details.description ? details.description.slice(0, 250) + '…' : 'N/A'}` : `
+
+Cap: ${stockTier}`;
 
   // Split news into stock-specific vs general market
   const tickerUpper = stock.ticker.toUpperCase();
@@ -359,118 +291,73 @@ Stock Tier  : ${stockTier}`;
   let newsData = '';
   if (hasSpecificNews) {
     newsData = `
-━━━ NEWS: ${tickerUpper}-SPECIFIC ━━━
-These headlines directly mention ${tickerUpper} / ${name}:
+
+NEWS: ${tickerUpper}-SPECIFIC
 ${specificNews.map(fmtNewsLine).join('\n')}`;
     if (generalNews.length > 0) {
       newsData += `
 
-GENERAL MARKET NEWS (NOT about ${tickerUpper} — do NOT attribute these to the stock):
+GENERAL MARKET NEWS (not about ${tickerUpper}):
 ${generalNews.slice(0, 3).map(fmtNewsLine).join('\n')}`;
     }
   } else if (hasAnyNews) {
     newsData = `
-━━━ NEWS ━━━
-⚠️ NO ${tickerUpper}-SPECIFIC NEWS FOUND. Only general market headlines available — these are NOT about ${tickerUpper}:
+
+NEWS: NO ${tickerUpper}-SPECIFIC NEWS
 ${allNews.slice(0, 3).map(fmtNewsLine).join('\n')}`;
   }
 
-  const pct = Number(stock.changePercent);
-  const sector = details?.sector || 'sector desconocido';
-
-  let catalystInstruction;
-  if (hasSpecificNews) {
-    catalystInstruction = `cite the most relevant headline from the "${tickerUpper}-SPECIFIC" news section above`;
-  } else if (hasAnyNews) {
-    catalystInstruction = `NO ${tickerUpper}-specific news was found — the NEWS section only has general market headlines. Use this EXACT phrasing: "No encontré noticias específicas de ${tickerUpper} hoy. La noticia más reciente relacionada con el mercado es: [paste the first general headline]" (or in English: "I couldn't find ${tickerUpper}-specific news today. The most recent market-related headline is: [paste the first general headline]"). Then infer the likely catalyst from the price/volume data`;
-  } else if (pct >= 100) {
-    catalystInstruction = `no headlines in NEWS — this is an EXTREME move. Infer from data: +${pct.toFixed(2)}% with volume ${fmtVol(stock.volume)} in ${sector} (${stockTier}). Say specifically: "Con un movimiento de +${pct.toFixed(0)}% en volumen ${fmtVol(stock.volume)}, esto parece un squeeze o pump — alto riesgo, verifica si hay catalizador real antes de entrar." (or English equivalent: "A +${pct.toFixed(0)}% move on ${fmtVol(stock.volume)} volume looks like a squeeze or pump — high risk, verify if there's a real catalyst before entering."). NEVER say "es difícil determinar la causa exacta" — always name the pattern explicitly.`;
-  } else if (pct >= 20) {
-    catalystInstruction = `no headlines in NEWS — infer from data: +${pct.toFixed(2)}% in ${sector} (${stockTier}) at this magnitude likely signals earnings beat, FDA approval, major contract, or short squeeze. State this inference clearly. End with: "Recomiendo verificar las noticias más recientes para confirmar el catalizador exacto." (or English equivalent if responding in English)`;
-  } else if (pct >= 5) {
-    catalystInstruction = `no headlines in NEWS — infer from data: +${pct.toFixed(2)}% in ${sector} (${stockTier}) suggests analyst upgrade, sector rotation, or minor positive catalyst. State this inference. End with: "Recomiendo verificar las noticias más recientes para confirmar el catalizador exacto." (or English equivalent if responding in English)`;
-  } else if (pct <= -10) {
-    catalystInstruction = `no headlines in NEWS — infer from data: ${pct.toFixed(2)}% drop in ${sector} (${stockTier}) likely signals earnings miss, FDA rejection, weak guidance, or adverse news. State this inference. End with: "Recomiendo verificar las noticias más recientes para confirmar el catalizador exacto." (or English equivalent if responding in English)`;
-  } else {
-    catalystInstruction = `no headlines in NEWS — infer from data: moderate ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% move in ${sector} (${stockTier}) likely reflects sector rotation or technical adjustment. State this inference. End with: "Recomiendo verificar las noticias más recientes para confirmar el catalizador exacto." (or English equivalent if responding in English)`;
-  }
-
-  const useFormat2 = isAutoAnalysis || !tickerInHistory(stock?.ticker, history);
-
-  const analysisInstruction = useFormat2
-    ? `\n━━━ YOUR TASK (${isAutoAnalysis ? 'FIRST MESSAGE — AUTO-ANALYSIS' : 'FIRST MENTION OF THIS TICKER'}) ━━━
-Write the opening analysis using FORMAT 2.
-• Copy all numbers exactly from the LIVE DATA above.
-• Support = today's low or VWAP (whichever is lower). Resistance = today's high.
-• For the ⚡ Catalizador/Catalyst field: ${catalystInstruction}
-• End with a clear directional opinion.
-• Respond in Spanish by default (unless stock name/context is clearly English).`
-    : `\n━━━ INSTRUCTIONS (FOLLOW-UP MESSAGE) ━━━
-Use FORMAT 4: short bullets only, NO paragraphs, NO walls of text.
-• DO NOT use FORMAT 2. DO NOT output 📊📈💡🎯⚡📌 as section headers.
-• Answer ONLY what the user asked. Do not repeat the price data block.
-• If the user asks about catalyst/driver: ${catalystInstruction}
-• If the user asks for a trade setup: use FORMAT 3.
-• If the user explicitly says "análisis completo" or "full analysis": then use FORMAT 2.
-• For trade direction questions: give a direct 2-4 sentence opinion using price vs VWAP, high/low range, and volume to support your view.
-• Never invent prices. Respond in the SAME language as the user's message.`;
-
-  // ── Extended data block (prevDay, RVOL, 5-day trend, float) ──────────────────
   let extendedBlock = '';
   if (extendedData) {
     const { prevDay, rvol, fiveDayPct, trendLabel } = extendedData;
-    const lines = ['', '━━━ EXTENDED DATA ━━━'];
+    const lines = ['', 'EXTENDED DATA:'];
     if (prevDay) {
       lines.push(`Prev Day: Close $${Number(prevDay.close).toFixed(2)} | High $${Number(prevDay.high).toFixed(2)} | Low $${Number(prevDay.low).toFixed(2)} | Vol: ${fmtVol(prevDay.volume)}`);
     }
     if (fiveDayPct !== null && fiveDayPct !== undefined) {
       const sign = fiveDayPct >= 0 ? '+' : '';
-      lines.push(`5-Day Trend: ${sign}${fiveDayPct.toFixed(1)}% over last 5 days [${trendLabel}]`);
+      lines.push(`5-Day Trend: ${sign}${fiveDayPct.toFixed(1)}% [${trendLabel}]`);
     }
     if (rvol !== null && rvol !== undefined) {
       const rvolLabel = rvol < 0.5 ? 'Very Low' : rvol < 1.5 ? 'Normal' : rvol < 3 ? 'Above Average' : rvol < 10 ? 'High' : 'Extreme';
-      lines.push(`Relative Volume (RVOL): ${rvol.toFixed(1)}x [${rvolLabel}]${rvol > 3 ? ' ← flag this to user' : ''}`);
+      lines.push(`RVOL: ${rvol.toFixed(1)}x [${rvolLabel}]`);
     }
     if (details?.sharesOutstanding) {
       const shares  = Number(details.sharesOutstanding);
       const sharesMM = shares / 1e6;
-      const floatTier = sharesMM < 5   ? 'Ultra Low Float — extreme move/squeeze risk' :
-                        sharesMM < 50  ? 'Low Float — elevated squeeze potential' :
+      const floatTier = sharesMM < 5   ? 'Ultra Low Float' :
+                        sharesMM < 50  ? 'Low Float' :
                         sharesMM < 500 ? 'Mid Float' : 'Large Float';
-      const squeezNote = sharesMM < 50 ? ' ← mention squeeze risk if RVOL is elevated' : '';
-      lines.push(`Float: ${sharesMM.toFixed(1)}M shares [${floatTier}]${squeezNote}`);
+      lines.push(`Float: ${sharesMM.toFixed(1)}M shares [${floatTier}]`);
     }
     if (lines.length > 2) extendedBlock = lines.join('\n');
   }
 
-  // Market context block: SPY/QQQ + risk-on/off signal + RS vs SPY + top movers
   const spy = (marketIndices || []).find(m => m.ticker === 'SPY');
   const qqq = (marketIndices || []).find(m => m.ticker === 'QQQ');
 
   let marketContextBlock = '';
   if (spy || qqq || gainers?.length || losers?.length) {
-    const ctxLines = ['', '━━━ MARKET CONTEXT ━━━'];
+    const ctxLines = ['', 'MARKET CONTEXT:'];
 
     if (spy) {
       const s = Number(spy.changePercent);
-      ctxLines.push(`SPY (S&P 500 ETF): ${fmtP(spy.price)} | ${s >= 0 ? '+' : ''}${s.toFixed(2)}% today`);
+      ctxLines.push(`SPY: ${fmtP(spy.price)} | ${s >= 0 ? '+' : ''}${s.toFixed(2)}%`);
     }
     if (qqq) {
       const q = Number(qqq.changePercent);
-      ctxLines.push(`QQQ (NASDAQ-100 ETF): ${fmtP(qqq.price)} | ${q >= 0 ? '+' : ''}${q.toFixed(2)}% today`);
+      ctxLines.push(`QQQ: ${fmtP(qqq.price)} | ${q >= 0 ? '+' : ''}${q.toFixed(2)}%`);
     }
 
-    // Risk-on / risk-off derived from SPY direction
     if (spy) {
       const spyPct = Number(spy.changePercent);
       const tone = spyPct >= 1 ? 'Risk-ON — broad market rally' :
                    spyPct >= 0.3 ? 'Mildly Risk-ON' :
                    spyPct <= -1 ? 'Risk-OFF — broad market selloff' :
-                   spyPct <= -0.3 ? 'Mildly Risk-OFF' : 'Neutral / flat market';
+                   spyPct <= -0.3 ? 'Mildly Risk-OFF' : 'Neutral';
       ctxLines.push(`Market Tone: ${tone}`);
     }
 
-    // Relative Strength vs SPY for the loaded stock
     if (stock && spy) {
       const stockPct = Number(stock.changePercent);
       const spyPct   = Number(spy.changePercent);
@@ -481,68 +368,57 @@ Use FORMAT 4: short bullets only, NO paragraphs, NO walls of text.
                        rs <= -3  ? 'Significant underperformer' :
                        rs <= -0.5 ? 'Underperforming market' : 'In-line with market';
       ctxLines.push(
-        `Relative Strength vs SPY: ${rsSign}${rs.toFixed(2)}% [${rsLabel}]` +
-        ` — ${stock.ticker} ${stockPct >= 0 ? '+' : ''}${stockPct.toFixed(2)}% vs SPY ${spyPct >= 0 ? '+' : ''}${spyPct.toFixed(2)}%`
-      );
-      ctxLines.push(
-        `RS RULE: When asked about relative strength, use EXACTLY these numbers. ` +
-        `RS ${rs >= 0 ? '≥ 0 → outperforming' : '< 0 → underperforming'} the S&P 500 today.`
+        `RS vs SPY: ${rsSign}${rs.toFixed(2)}% [${rsLabel}] — ${stock.ticker} ${stockPct >= 0 ? '+' : ''}${stockPct.toFixed(2)}% vs SPY ${spyPct >= 0 ? '+' : ''}${spyPct.toFixed(2)}%`
       );
     }
 
-    // Top 5 movers for breadth context (not the full list)
     if ((gainers || []).length > 0) {
-      ctxLines.push(`Top gainers today: ${(gainers || []).slice(0, 5).map(fmtRow).join(' | ')}`);
+      ctxLines.push(`Top gainers: ${(gainers || []).slice(0, 5).map(fmtRow).join(' | ')}`);
     }
     if ((losers || []).length > 0) {
-      ctxLines.push(`Top losers today: ${(losers || []).slice(0, 5).map(fmtRow).join(' | ')}`);
+      ctxLines.push(`Top losers: ${(losers || []).slice(0, 5).map(fmtRow).join(' | ')}`);
     }
 
     marketContextBlock = ctxLines.join('\n');
   }
 
-  // Earnings block (last 4 quarters from Polygon financials)
   let earningsBlock = '';
   if (!isGeneral && Array.isArray(earnings) && earnings.length > 0) {
     const fmtRev = v => v == null ? 'N/A' : v >= 1e9 ? `$${(v/1e9).toFixed(2)}B` : v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${v.toFixed(0)}`;
     const fmtEps = v => v == null ? 'N/A' : `$${Number(v).toFixed(2)}`;
 
-    // Compute staleness relative to today (May 2026)
-    const NOW_MS = new Date('2026-05-08').getTime();
     const mostRecentDate = earnings[0]?.endDate || '';
-    let stalenessWarning = '';
+    let recencyNote = '';
     if (mostRecentDate) {
-      const reportMs = new Date(mostRecentDate).getTime();
-      const monthsAgo = Math.max(0, Math.round((NOW_MS - reportMs) / (1000 * 60 * 60 * 24 * 30.4)));
-      const quartersAgo = Math.round(monthsAgo / 3);
-      if (monthsAgo >= 12) {
-        stalenessWarning = `\n⚠️ STALENESS — most recent report date: ${mostRecentDate} (~${quartersAgo} quarters ago, ${monthsAgo} months). This data is ${monthsAgo >= 18 ? '1.5–2 years' : 'over 1 year'} old. You MUST tell the user this when citing these numbers. Never call this "recent."`;
-      } else if (monthsAgo >= 3) {
-        stalenessWarning = `\n📅 Most recent report: ${mostRecentDate} (~${quartersAgo} quarter(s) ago). Acknowledge this gap when presenting data.`;
-      }
+      const monthsAgo = Math.max(0, Math.round((Date.now() - new Date(mostRecentDate).getTime()) / (1000 * 60 * 60 * 24 * 30.4)));
+      recencyNote = `\nMost recent report: ${mostRecentDate} (~${Math.round(monthsAgo / 3)} quarter(s) ago)`;
     }
-
-    const tickerSym = stock?.ticker || '';
-    const secLink = tickerSym
-      ? `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=${tickerSym}&type=10-Q&dateb=&owner=include&count=10`
-      : 'https://www.sec.gov/cgi-bin/browse-edgar';
 
     const earningsLines = earnings.map(e =>
       `  ${e.period || e.endDate}: EPS ${fmtEps(e.eps)} | Revenue ${fmtRev(e.revenue)}`
     );
 
-    earningsBlock = `\n━━━ EARNINGS DATA (real Polygon data — USE THIS FIRST before training knowledge) ━━━\n${earningsLines.join('\n')}\n${stalenessWarning}\nFor most recent 2025-2026 filings: ${secLink}\nWhen presenting earnings: state the exact date from above, compute quarters elapsed since May 2026, and end with the SEC Edgar link. If EPS trend is improving QoQ, note it.\n`;
+    earningsBlock = `\n\nEARNINGS:\n${earningsLines.join('\n')}${recencyNote}`;
   }
 
-  return `${currentContext}
+  const pct = Number(stock.changePercent);
+  const catalystStatus = hasSpecificNews
+    ? `CATALYST: ${tickerUpper}-specific news found (see NEWS section)`
+    : hasAnyNews
+      ? `CATALYST: No ${tickerUpper}-specific news; general market headlines only`
+      : pct >= 100 ? `CATALYST: No news — extreme move (+${pct.toFixed(0)}%); likely squeeze or pump`
+      : pct >= 20  ? `CATALYST: No news — large move (+${pct.toFixed(0)}%); infer from sector/volume`
+      : pct >= 5   ? `CATALYST: No news — moderate move (+${pct.toFixed(0)}%)`
+      : pct <= -10 ? `CATALYST: No news — sharp drop (${pct.toFixed(0)}%)`
+      : '';
 
-${OVERRIDE}
+  const firstMention = !tickerInHistory(stock?.ticker, history);
+  const msgType = isAutoAnalysis ? 'AUTO_ANALYSIS' : firstMention ? 'FIRST_MENTION' : 'FOLLOWUP';
 
-${marketData}${companyData}${newsData}${extendedBlock}${smartSetupBlock}${earningsBlock}${marketContextBlock}${analysisInstruction}
+  return `DATE: ${today}
+MESSAGE_TYPE: ${msgType}
 
-━━━ LENGTH RULE — ABSOLUTE ━━━
-NEVER refuse to write a long analysis. If the user asks for 100 lines, write 100 lines. If the user asks for 50 lines, write 50 lines. Use BOTH the live data above AND your training knowledge about this stock — cover price action, technical levels, volume, sector context, historical performance, fundamentals, catalysts, risks, and trading recommendation. Fill every requested line with real, specific, actionable content.
-BANNED: "no puedo proporcionar un análisis tan extenso", "no es posible dar un análisis de X líneas", "I cannot provide such a long analysis", "that would be too long", "un análisis tan detallado excede mis capacidades", or any refusal based on length.`;
+${marketData}${companyData}${newsData}${extendedBlock}${smartSetupBlock}${earningsBlock}${marketContextBlock}${catalystStatus ? '\n\n' + catalystStatus : ''}`;
 }
 
 // ── Shared fetch helper ───────────────────────────────────────────────────────
