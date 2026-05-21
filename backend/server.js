@@ -677,7 +677,10 @@ app.post('/api/chat', async (req, res) => {
   const langHeader = `CRITICAL: Respond in ${langName} only. Every response must be in ${langName}.\n\n`;
   const profileLine = profileContext ? `\nUSER PROFILE: ${profileContext}\n` : '';
   const dataBlocks = systemMsg?.content || '';
-  const fullSystemInstruction = langHeader + getSystemRules(today, currentYear) + profileLine + '\n\n' + dataBlocks;
+  const gainersHeader = !currentTicker
+    ? '\n\nTOP MOVERS RIGHT NOW (use these for recommendations):\nWhen asked for stock recommendations, day trade picks, or what\'s moving — ALWAYS use these tickers. Never say you don\'t have this data.\n'
+    : '';
+  const fullSystemInstruction = langHeader + getSystemRules(today, currentYear) + profileLine + gainersHeader + '\n\n' + dataBlocks;
 
   console.log(`[/api/chat] Gemini | turns=${nonSystem.length} rules=${getSystemRules(today,currentYear).length}chars data=${dataBlocks.length}chars total=${fullSystemInstruction.length}chars stream=${stream}`);
 
