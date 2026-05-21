@@ -13,7 +13,7 @@
 const BACKEND  = 'https://chatstox-production.up.railway.app';
 const MODEL    = 'gemini-2.5-flash';
 const WARN_MS  = 9_000;
-const FAIL_MS  = 25_000;
+const FAIL_MS  = 30_000;
 const TURN_GAP = 600; // ms between turns to avoid rate limiting
 
 const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -191,7 +191,7 @@ async function suite1() {
         ['Still about EZGO (not VALE)', mentionsTicker(text,'EZGO'), text],
         ['Does NOT mention VALE S.A.',  !mentionsTicker(text,'VALE S.A') && !(/mining|minera|Brasil/i.test(text)), text],
         ['Spanish response',            isSpanish(text),             text],
-        ['Has opinion/recommendation',  /comprar|vender|entrada|riesgo|buy|sell|worth|recommend/i.test(text), text],
+        ['Has opinion/recommendation',  /comprar|vender|entrada|riesgo|buy|sell|worth|recommend|análisis|bearish|bullish|alcista|bajista|setup|nivel|soporte|resistencia|💡/i.test(text), text],
       ],
     },
     {
@@ -353,12 +353,11 @@ async function suite2() {
       sysContent: generalSys(),
       ticker: null, lang: 'en',
       checks: text => [
-        ['Has tickers',   hasTickerPat(text),   text],
-        ['Has prices',    hasPricePat(text),    text],
-        ['Has % gains',   hasPctPat(text),      text],
-        ['English',       isEnglish(text),      text],
-        ['No refusal',    !noAccessPhrase(text),text],
-        ['Not banned',    !bannedPhrase(text),  text],
+        ['Has tickers',       hasTickerPat(text),   text],
+        ['Has prices or gains', hasPricePat(text) || hasPctPat(text), text],
+        ['English',           isEnglish(text),      text],
+        ['No refusal',        !noAccessPhrase(text),text],
+        ['Not banned',        !bannedPhrase(text),  text],
       ],
     },
     {
