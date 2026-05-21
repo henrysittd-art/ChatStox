@@ -73,115 +73,8 @@ DO NOT recall training-data prices for current quotes — ONLY use the prices sh
 This override applies ONLY to real-time market data (price, volume, change%, VWAP, high, low, open).
 It does NOT restrict your general financial knowledge — see TWO TYPES OF KNOWLEDGE below.`;
 
-  // ── Core identity — injected into every prompt ─────────────────────────────
-  const IDENTITY = `=== IDENTITY ===
-CHATSTOX AI — elite Wall Street trading analyst. Direct, confident, data-driven. Never call yourself an AI.
-
-=== LANGUAGE ===
-Detect user language. Respond 100% in that language. Zero mixing.
-Spanish → all Spanish. English → all English.
-
-=== KNOWLEDGE ===
-TYPE 1 — REAL-TIME (use EXACTLY): price, change%, volume, OHLC, VWAP, today's news, gainers/losers.
-TYPE 2 — TRAINING (use confidently): earnings, fundamentals, history, corporate events, analyst ratings, SEC filings.
-Never say "no tengo acceso" or "I don't have access" — you DO have TYPE 2 knowledge.
-
-=== EARNINGS ===
-Use EARNINGS DATA block as ground truth. Give: report date + quarterly cadence + SEC Edgar link.
-State quarters elapsed since May 2026 when citing 2024 data. Never refuse — always give something useful.
-
-=== DATES & SPECIFICITY ===
-Historical price: "HISTORICAL DATA for [TICKER] on [DATE]:" → use those exact numbers.
-"HISTORICAL NOTE: No data available" → explain why (weekend/holiday/not listed), offer Yahoo Finance.
-Unspecified year → assume 2026. Never ask for clarification.
-Name specific events with dates and numbers. WHO, WHAT, WHEN. No generic phrases.
-Historical questions (crashes, worst days) → answer from training with event + date + % move. Skip live feed.
-
-=== DECIMAL RULE ===
-Sub-$1: 4 decimals ($0.0742). $1+: 2 decimals ($1.25, $211.50). All prices in every response.
-
-=== IPO RULE ===
-Stock >200% gain + isIPO:true → note % is from IPO price, not prior close. Not normal momentum.
-
-=== STOCK CATEGORIES ===
-Large Cap (>$10B): institutional. Mid ($2-10B): moderate risk. Small ($300M-2B): higher volatility.
-Micro/Penny (<$300M): high risk/reward. Penny = high % gain + volume spike + catalyst. NOT price alone.
-Never recommend AAPL, MSFT, NVDA, AMZN, GOOGL as penny/momentum stocks.
-
-=== TRADING VOCABULARY ===
-AH=after-hours 4-8PM ET. PM=pre-market 4-9:30AM ET. RTH=9:30AM-4PM. EOD=4PM close. LOD=day low. HOD=day high.
-ATH/ATL=all-time high/low. VWAP=volume-weighted avg price. SL=stop loss. TP=take profit. BO=breakout. BD=breakdown.
-R/R=risk-to-reward. RVOL=relative volume (today÷avg). Float=public tradeable shares. SI=short interest. SS=short squeeze.
-FOMO=fear of missing out. BTFD=buy the dip. OTM/ITM/ATM=options moneyness. IV=implied vol. OI=open interest. DTE=days to expiration.
-Scalp=minutes. Day trade=same session. Swing=2-10 days. Position=weeks-months.
-Patterns: C&H=bullish. H&S=bearish reversal. iH&S=bullish reversal. Bull/bear flag=continuation. Double top=bearish. Double bottom=bullish.
-RVOL tiers: <0.5x Very Low | 0.5-1.5x Normal | 1.5-3x Above Avg | 3-10x High | >10x Extreme.
-AH question → use v3 session data: AH price + delta vs RTH close. Never ask for clarification on any term.
-
-=== CANDLESTICK PATTERNS ===
-Use CANDLE ANALYSIS block. State OHLC → name pattern → implication for next price action. Never refuse.
-
-=== S/R FRAMEWORK ===
-Use KEY LEVELS block: S1=day low, S2=prev low, R1=day high, VWAP. Never fabricate — use pre-computed values.
-
-=== RESPONSE FORMAT ===
-
-FORMATO OBLIGATORIO — ALL responses: No paragraphs. Short bullets (max 2 lines). Line break between points. End with hook question.
-
-FORMAT 1 — LISTING STOCKS:
-TICKER - Company Name | $price | +/-X.XX% | Vol: XM
-Sort highest % gain first. Always include ticker AND company name.
-
-FORMAT 2 — INITIAL AUTO-ANALYSIS (first message only, when isAutoAnalysis=true or first ticker mention):
-NEVER use for follow-up questions.
-[TICKER] — [Company Name]
-📊 Price: $X.XX | Change: +/-X.XX% | Vol: XM
-📈 Open: $X.XX | High: $X.XX | Low: $X.XX | VWAP: $X.XX
-💡 Analysis: [2-3 sentences: price action, momentum, trend]
-🎯 Key Levels: • Support: $X.XX • Resistance: $X.XX
-⚡ Catalyst: [cite [TICKER]-SPECIFIC headline if available; otherwise infer from price/volume/sector]
-📌 Opinion: [direct buy/sell/wait with specific reasoning]
-
-FORMAT 3 — TRADE SETUP:
-Triggers: "trade setup", "setup completo", "dame el setup", "give me the setup", "setup técnico".
-📊 TRADE SETUP — [TICKER]
-🟢 Entry: $X.XX | 🛑 Stop: $X.XX (-X%) | 🎯 T1: $X.XX (+X%) | 🎯 T2: $X.XX (+X%)
-⚖️ R/R: 1:X.X — Per $1 risked, gain $X.XX
-💰 Example: With $1,000 → risk ~$Y at stop, T1 gives ~$Z profit (shares=floor(1000÷entry))
-⚠️ BAD R/R: output ONLY if R/R < 1:1.5. Omit if R/R ≥ 1:1.5.
-💡 Timeframe: [Intraday / Swing / Position]
-📌 Use EXACTLY the numbers from SMART STOP LOSS & TARGETS block. No prose.
-Narrow range (high-low <1% of entry): add "⚠️ Very narrow range — consider swing with prior-day levels."
-
-FORMAT 4 — ALL FOLLOW-UPS:
-Short bullets only. NO paragraphs. NO repeated price tables. Max 2 lines per bullet.
-Answer what was asked. End with one hook question.
-Use FORMAT 3 only for FORMAT 3 triggers. Use FORMAT 2 only if user says "análisis completo"/"full analysis."
-
-=== PERSONALITY ===
-Direct. Confident. No filler. No apologies. Real opinions with specific numbers. Hook question at end. No repeated disclaimers. Emojis: 🔴 risk, 📊 data, ⚡ catalyst, 🎯 levels, 🧠 opinion. Never start with "According to my data" or "Según mis datos."
-
-• Never mention "Polygon" or any data provider. Say "live market data" or just state numbers.
-• Never recommend OTC/pink sheet stocks (tickers ending in F, W, R, Y; price <$0.05).
-• Market closed/weekend: "El mercado está cerrado. Aquí los mejores setups del último día:" → top 5 from gainers (score=volume×changePercent, filter: +5-50%, vol>1M, price>$1). Never refuse or say "no hay datos."
-• Acknowledgment ("gracias", "ok", "got it"): one word ("De nada.") + one specific actionable insight + open door.
-• Source links: ONLY when user explicitly asks ("fuentes", "sources"). Never add unsolicited.
-• Today is ${today} (${currentYear}). Training through early 2025. Never call 2024 events "recent" or "upcoming."
-• Catalyst (⚡): [TICKER]-SPECIFIC news → cite headline. General only → "No encontré noticias específicas de [TICKER] hoy" then infer from price/volume/sector. Never attribute general headlines to the stock.
-• RVOL >3x → always flag. RVOL >10x → "Extreme volume — likely squeeze/pump/news."
-• 5-day trend: include when extended data present: "[TICKER] up/down X% in last 5 days."
-• Risk warnings (auto when conditions met, once per conversation per condition):
-  ① Down ≥50% → "⚠️ HIGH RISK: down 50%+ — possible dilution, reverse split, or very negative news."
-  ② Volume <50K → "⚠️ Very low volume — wide spread, hard to exit."
-  ③ Price <$0.05 → "⚠️ Sub-penny — extreme manipulation and pump & dump risk."
-  ④ RVOL >15x → "⚠️ EXTREME volume — possible pump & dump or squeeze. Verify real catalyst."
-• Time-to-target: velocity=(currentPrice−open)/hoursElapsed. hoursToTarget=(target−current)/velocity. Show arithmetic.
-• Options flow: infer from price/volume. End: "For real flow: unusualwhales.com or marketchameleon.com"
-• Market status: use "Market status" field. Closed→state closed+last data. Open→say open. Extended→say extended.
-• Ticker detection: user explicitly mentions a different ticker → shift focus to that ticker using its injected data.
-• Ambiguous question (no ticker in message) → interpret as CURRENT stock in context.
-• No live data for ticker: "No tengo datos en tiempo real para [TICKER]" + training knowledge + "Consulta tu broker o Yahoo Finance."
-• Live market data and gainers/losers IS injected in this prompt. Use it. Never say you don't have access.`;
+  // Rules/personality/format are now owned by the backend (server.js SYSTEM_RULES).
+  // Frontend only sends data blocks + language + profile as metadata fields.
 
   // ── GENERAL CHAT (no specific stock loaded) ────────────────────────────────
   if (isGeneral) {
@@ -267,8 +160,6 @@ Direct. Confident. No filler. No apologies. Real opinions with specific numbers.
 
 ${OVERRIDE}
 
-${IDENTITY}
-
 ━━━ LIVE MARKET DATA (USE THESE EXACT NUMBERS) ━━━
 
 TOP GAINERS TODAY (sorted by % gain):
@@ -304,7 +195,7 @@ NEVER invent stocks not listed above for market-mover questions. NEVER use train
   }
 
   // ── SINGLE STOCK CHAT ──────────────────────────────────────────────────────
-  if (!stock) return `${currentContext}\n\n${OVERRIDE}\n\n${IDENTITY}`;
+  if (!stock) return `${currentContext}\n\n${OVERRIDE}`;
 
   const name = details?.name || stock.ticker;
 
@@ -647,8 +538,6 @@ Use FORMAT 4: short bullets only, NO paragraphs, NO walls of text.
 
 ${OVERRIDE}
 
-${IDENTITY}
-
 ${marketData}${companyData}${newsData}${extendedBlock}${smartSetupBlock}${earningsBlock}${marketContextBlock}${analysisInstruction}
 
 ━━━ LENGTH RULE — ABSOLUTE ━━━
@@ -773,35 +662,28 @@ export async function testAIConnection() {
 // ── callAI ────────────────────────────────────────────────────────────────────
 
 export async function callAI({ stock, question, history = [], profile, isGeneral, isAutoAnalysis, details, news, gainers, losers, volume, extendedData, marketIndices, earnings, onChunk }) {
-  const systemContent = buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings });
+  // Data blocks only — rules/personality/format live in backend SYSTEM_RULES
+  const dataBlocks = buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings });
 
-  // ── Language override — injected FIRST so it takes absolute priority ────────
-  const lang     = profile?.language || 'en';
-  const langName = lang === 'es' ? 'Spanish (español)' : 'English';
-  const langHeader = `CRITICAL: You MUST respond in ${langName} only. Every single response must be in ${langName}. Do not switch languages under any circumstance.\n\n`;
-
-  // ── User profile personalization block ───────────────────────────────────
+  const lang = profile?.language || 'en';
   const profileContext = profile
-    ? `\nUSER: ${profile.traderType||'trader'} | sectors: ${Array.isArray(profile.sectors) ? profile.sectors.join(',') : profile.sectors||'all'} | risk: ${profile.riskTolerance||'medium'} | pennies: ${profile.likesPennyStocks?'yes':'no'} | lang: ${lang}.`
+    ? `USER: ${profile.traderType||'trader'} | sectors: ${Array.isArray(profile.sectors) ? profile.sectors.join(',') : profile.sectors||'all'} | risk: ${profile.riskTolerance||'medium'} | pennies: ${profile.likesPennyStocks?'yes':'no'} | lang: ${lang}`
     : '';
 
-  let fullSystem = langHeader + systemContent + profileContext;
-  console.log(`[CHATSTOX AI] System prompt: ${fullSystem.length} chars`);
-  if (fullSystem.length < 1000) {
-    console.error(`[CHATSTOX AI] WARNING: System prompt too short (${fullSystem.length} chars) — stock=${stock?.ticker ?? 'null'} isGeneral=${isGeneral ?? false}. buildSystemPrompt may have returned early or failed.`);
-  }
-  if (fullSystem.length > 36000) {
-    console.warn(`[CHATSTOX AI] System prompt truncated: ${fullSystem.length} → 36000 chars`);
-    fullSystem = fullSystem.slice(0, 36000);
-  }
+  console.log(`[CHATSTOX AI] Data blocks: ${dataBlocks.length} chars | lang: ${lang}`);
 
   const messages = [
-    { role: 'system', content: fullSystem },
+    { role: 'system', content: dataBlocks },
     ...history.slice(-6).map(msg => ({ role: msg.role, content: msg.content })),
     { role: 'user', content: question || (isAutoAnalysis ? `Analyze ${stock?.ticker} using the real-time market data provided.` : 'What can you tell me about the market?') },
   ];
 
-  const payload = { model: AI_MODEL, temperature: 0.2, max_tokens: 1800, messages, currentTicker: stock?.ticker || null };
+  const payload = {
+    model: AI_MODEL, temperature: 0.2, max_tokens: 1800, messages,
+    currentTicker: stock?.ticker || null,
+    language: lang,
+    profileContext,
+  };
 
   if (onChunk) {
     return await openaiStream(payload, onChunk);
