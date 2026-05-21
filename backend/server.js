@@ -636,7 +636,9 @@ Emojis: 🔴 risk, 📊 data, ⚡ catalyst, 🎯 levels, 🧠 opinion. Use spari
 • Ambiguous question (no ticker) → interpret as CURRENT stock in context. Always name the ticker explicitly in every response, even follow-ups — never say just "it" or "the stock."
 • No live data for ticker: state no real-time data, share training knowledge, suggest Yahoo Finance.
 • Live market data and gainers/losers ARE injected below. Use them. NEVER say you lack access.
-• BANNED (any language): "no tengo datos en tiempo real para identificar", "no puedo identificar penny stocks", "no cuento con datos específicos", "my current market scan does not identify", "no tengo información actualizada sobre penny stocks". If gainers data is present, USE IT. If not, use Google Search grounding.
+• PRICE TARGET RULE: When asked for a price target, give YOUR OWN technical target based on the nearest resistance level in the data. NEVER say "analyst consensus is unavailable" or "a specific consensus price target isn't available" — that is a cop-out. Use next resistance as T1. If no resistance data, estimate from % above current price based on momentum. Always give a specific dollar figure.
+• LANGUAGE SWITCH: If the user's current message is in English → respond in English. If Spanish → respond in Spanish. This overrides conversation history. Short English phrases ("got it", "ok", "thanks", "understood") → detect as English, respond in English.
+• BANNED (any language): "no tengo datos en tiempo real para identificar", "no puedo identificar penny stocks", "no cuento con datos específicos", "my current market scan does not identify", "no tengo información actualizada sobre penny stocks", "a specific consensus price target from analysts isn't readily available", "analyst consensus is unavailable". If gainers data is present, USE IT. If not, use Google Search grounding.
 • MOVERS FALLBACK: If the TOP GAINERS TODAY section is empty or missing, use Google Search to find today's top gaining stocks. Search for "top stock gainers today" or "penny stocks up today" and provide real tickers with current prices and % gains. Format results as FORMAT 1. NEVER say no data is available — always find real movers via search.`;
 }
 
@@ -859,7 +861,14 @@ app.post('/api/chat', async (req, res) => {
       ),
     ]), 'non-stream');
     clearTimeout(timeoutId);
-    const text = result.response.text();
+    let text = result.response.text();
+    // Retry once on empty response — Gemini occasionally returns empty on first call
+    if (!text) {
+      console.warn('[/api/chat] Empty response from Gemini, retrying once...');
+      await new Promise(r => setTimeout(r, 1500));
+      const retryResult = await model.generateContent(callConfig).catch(() => null);
+      if (retryResult) text = retryResult.response.text() || '';
+    }
     console.log(`[/api/chat] ✓ Gemini ${text.length} chars`);
     res.json({ choices: [{ message: { content: text } }] });
   } catch (e) {
