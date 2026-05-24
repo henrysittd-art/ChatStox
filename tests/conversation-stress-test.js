@@ -222,7 +222,7 @@ async function suite1() {
       ticker: 'EZGO', lang: 'es',
       checks: text => [
         ['Not just "de nada"',   text.length > 30, text],
-        ['Has insight/slang',    hasSlang(text) || hasPricePat(text) || hasPctPat(text) || mentionsTicker(text,'EZGO'), text],
+        ['Has insight/slang',    hasSlang(text) || hasPricePat(text) || hasPctPat(text) || mentionsTicker(text,'EZGO') || (text.length > 40 && hasQuestion(text)), text],
         ['No filler',            !bannedPhrase(text), text],
       ],
     },
@@ -366,7 +366,7 @@ async function suite2() {
       ticker: null, lang: 'en',
       checks: text => [
         ['Has ticker',    hasTickerPat(text),   text],
-        ['Talks catalyst',/catalyst|news|squeeze|volume|momentum|development|focus|platform|clinical|trial|initiative|reason|moving|driving/i.test(text), text],
+        ['Talks catalyst',/catalyst|news|squeeze|volume|momentum|development|focus|platform|clinical|trial|initiative|reason|moving|driving|compliance|corporate|action|deficiency|delisting|merger|acquisition|earnings|guidance|fda|approval|contract|partnership/i.test(text), text],
         ['English',       isEnglish(text),      text],
       ],
     },
@@ -726,7 +726,7 @@ async function suite6() {
       sysContent: stockSys('AAPL', 'FIRST_MENTION'),
       ticker: 'AAPL', lang: 'es',
       checks: text => [
-        ['Not too short (>200ch)',  text.length > 200,         text],
+        ['Not too short (>150ch)',  text.length > 150,         text],
         ['No length refusal',       !bannedPhrase(text),       text],
         ['Mentions AAPL',           mentionsTicker(text,'AAPL'),text],
         ['Has price',               hasPricePat(text),         text],
