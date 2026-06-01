@@ -46,6 +46,7 @@ function StreamingCursor() {
 function TypingLogo() {
   const rotation = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
+  const skeletonOpacity = useRef(new Animated.Value(0.3)).current;
   useEffect(() => {
     Animated.loop(
       Animated.timing(rotation, {
@@ -61,16 +62,34 @@ function TypingLogo() {
         Animated.timing(scale, { toValue: 1,    duration: 600, useNativeDriver: true }),
       ])
     ).start();
-    return () => { rotation.stopAnimation(); scale.stopAnimation(); };
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(skeletonOpacity, { toValue: 0.8, duration: 800, useNativeDriver: true }),
+        Animated.timing(skeletonOpacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+    return () => {
+      rotation.stopAnimation();
+      scale.stopAnimation();
+      skeletonOpacity.stopAnimation();
+    };
   }, []);
   const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 8 }}>
-      <Animated.Image
-        source={require('../assets/chatstox-icon.png')}
-        style={{ width: 28, height: 28, transform: [{ rotate: spin }, { scale }] }}
-        resizeMode="contain"
-      />
+    <View style={{ padding: 8, gap: 12, width: '100%' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Animated.Image
+          source={require('../assets/chatstox-icon.png')}
+          style={{ width: 28, height: 28, transform: [{ rotate: spin }, { scale }] }}
+          resizeMode="contain"
+        />
+        <Text style={{ marginLeft: 8, fontSize: 13, fontWeight: '600', color: '#64748b' }}>Analyzing live markets...</Text>
+      </View>
+      <View style={{ gap: 8, width: '85%' }}>
+        <Animated.View style={{ height: 12, backgroundColor: '#cbd5e1', borderRadius: 6, width: '100%', opacity: skeletonOpacity }} />
+        <Animated.View style={{ height: 12, backgroundColor: '#cbd5e1', borderRadius: 6, width: '92%', opacity: skeletonOpacity }} />
+        <Animated.View style={{ height: 12, backgroundColor: '#cbd5e1', borderRadius: 6, width: '65%', opacity: skeletonOpacity }} />
+      </View>
     </View>
   );
 }
@@ -202,6 +221,10 @@ export default function GeneralChatScreen({ navigation, route }) {
   const [profile, setProfile] = useState(null);
   const [currentTabId, setCurrentTabId] = useState(null);
 
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
+  const userScrolledUpRef = useRef(false);
+  const abortControllerRef = useRef(null);
+
   const scrollRef = useRef(null);
   // Refs so callbacks always see fresh values without re-creating
   const volumeRef        = useRef([]);
@@ -219,7 +242,35 @@ export default function GeneralChatScreen({ navigation, route }) {
   const generalTabs = tabs.filter(t => t.type === 'general');
 
   const scrollToBottom = useCallback(() => {
+    if (userScrolledUpRef.current) return;
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+  }, []);
+
+  const stopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setThinking(false);
+    setMessages(prev => prev.map(msg =>
+      msg.isStreaming ? { ...msg, isStreaming: false } : msg
+    ));
+  }, []);
+
+  const handleScroll = useCallback((event) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    if (distanceFromBottom > 80) {
+      if (!userScrolledUpRef.current) {
+        userScrolledUpRef.current = true;
+        setUserScrolledUp(true);
+      }
+    } else {
+      if (userScrolledUpRef.current) {
+        userScrolledUpRef.current = false;
+        setUserScrolledUp(false);
+      }
+    }
   }, []);
 
   // ── Open a new general tab and answer its question ────────────────────────
@@ -229,6 +280,10 @@ export default function GeneralChatScreen({ navigation, route }) {
     currentTabIdRef.current = id;
     setCurrentTabId(id);
 
+    // Reset scroll tracking
+    userScrolledUpRef.current = false;
+    setUserScrolledUp(false);
+
     const sk = `chat_general_${id}`;
     const infoSk = `chat_general_info_${id}`;
     const tabName = generateTabName(question);
@@ -236,6 +291,9 @@ export default function GeneralChatScreen({ navigation, route }) {
     const withDisclaimer = [buildDisclaimerMessage(), userMsg];
     setMessages(withDisclaimer);
     setThinking(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     // Save user message immediately
     await AsyncStorage.setItem(sk, JSON.stringify(withDisclaimer)).catch(() => {});
@@ -281,6 +339,7 @@ export default function GeneralChatScreen({ navigation, route }) {
         history: [userMsg],
         profile: profileRef.current,
         volume: volumeRef.current,
+        signal: controller.signal,
         onChunk: (text) => {
           setMessages(prev => prev.map(msg =>
             msg.id === streamingId ? { ...msg, content: text } : msg
@@ -294,6 +353,10 @@ export default function GeneralChatScreen({ navigation, route }) {
       await AsyncStorage.setItem(infoSk, JSON.stringify({ tabName, question, lastTime: aiMsg.time })).catch(() => {});
       await markDisclaimerSeen('general');
     } catch (e) {
+      if (e.name === 'AbortError') {
+        console.log('[CHATSTOX AI] openNewTab generation stopped by user');
+        return;
+      }
       console.error('[CHATSTOX AI] openNewTab failed:', e.message);
       setMessages(prev => prev.map(msg =>
         msg.id === streamingId
@@ -301,6 +364,7 @@ export default function GeneralChatScreen({ navigation, route }) {
           : msg
       ));
     } finally {
+      abortControllerRef.current = null;
       setThinking(false);
     }
   }, [addGeneralTab]);
@@ -352,10 +416,17 @@ export default function GeneralChatScreen({ navigation, route }) {
     if (!content || thinking) return;
     setInput('');
 
+    // Reset scroll tracking
+    userScrolledUpRef.current = false;
+    setUserScrolledUp(false);
+
     const userMsg = { role: 'user', content, time: nowISO() };
     const updated = [...messages, userMsg];
     setMessages(updated);
     setThinking(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const sk = currentTabIdRef.current
       ? `chat_general_${currentTabIdRef.current}`
@@ -406,6 +477,7 @@ export default function GeneralChatScreen({ navigation, route }) {
         history: convoHistory.slice(-10),
         profile: profileRef.current,
         volume: volumeRef.current,
+        signal: controller.signal,
         onChunk: (text) => {
           setMessages(prev => prev.map(msg =>
             msg.id === streamingId ? { ...msg, content: text } : msg
@@ -424,6 +496,10 @@ export default function GeneralChatScreen({ navigation, route }) {
         await AsyncStorage.setItem(infoSk, JSON.stringify({ ...info, lastTime: aiMsg.time })).catch(() => {});
       }
     } catch (e) {
+      if (e.name === 'AbortError') {
+        console.log('[CHATSTOX AI] sendMessage generation stopped by user');
+        return;
+      }
       console.error('[CHATSTOX AI] GeneralChat sendMessage failed:', e.message);
       setMessages(prev => prev.map(msg =>
         msg.id === streamingId
@@ -431,6 +507,7 @@ export default function GeneralChatScreen({ navigation, route }) {
           : msg
       ));
     } finally {
+      abortControllerRef.current = null;
       setThinking(false);
     }
   }, [input, messages, thinking]);
@@ -556,6 +633,8 @@ export default function GeneralChatScreen({ navigation, route }) {
           style={styles.messages}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         >
           {messages.map((msg, i) => {
             if (msg.role === 'disclaimer' || msg.role === 'system_notice') {
@@ -584,6 +663,27 @@ export default function GeneralChatScreen({ navigation, route }) {
             </View>
           )}
         </ScrollView>
+
+        {/* Stop Generation & Scroll to Bottom Floating Bar */}
+        <View style={{ position: 'relative', width: '100%', alignItems: 'center', zIndex: 10 }}>
+          {thinking && (
+            <TouchableOpacity style={styles.stopBtn} onPress={stopGeneration}>
+              <Text style={styles.stopBtnText}>◼ Stop Generation</Text>
+            </TouchableOpacity>
+          )}
+          {userScrolledUp && (
+            <TouchableOpacity
+              style={styles.floatingScrollBtn}
+              onPress={() => {
+                userScrolledUpRef.current = false;
+                setUserScrolledUp(false);
+                scrollRef.current?.scrollToEnd({ animated: true });
+              }}
+            >
+              <Text style={styles.floatingScrollBtnText}>↓ Scroll to Bottom</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Quick Actions */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.quickRow} contentContainerStyle={styles.quickContent}>
@@ -717,4 +817,50 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: { backgroundColor: '#e0e0e0' },
   sendBtnText: { fontSize: 26, color: '#ffffff', fontWeight: '700', lineHeight: 30, marginTop: -1 },
+
+  // ── Stop and Scroll Controls ──
+  stopBtn: {
+    backgroundColor: '#ffffff',
+    borderColor: '#ef4444',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginVertical: 4,
+    alignSelf: 'center',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    zIndex: 10,
+  },
+  stopBtnText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  floatingScrollBtn: {
+    position: 'absolute',
+    bottom: 8,
+    backgroundColor: '#0a1628',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 10,
+  },
+  floatingScrollBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
 });

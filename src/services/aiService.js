@@ -425,7 +425,7 @@ ${marketData}${companyData}${newsData}${extendedBlock}${smartSetupBlock}${earnin
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function openaiStream(payload, onChunk) {
+async function openaiStream(payload, onChunk, signal) {
   const bodyStr = JSON.stringify({ ...payload, stream: true });
   const systemLen = payload.messages?.find(m => m.role === 'system')?.content?.length ?? 0;
   console.log(`[CHATSTOX AI] → /api/chat stream | model=${payload.model} | system=${systemLen}chars`);
@@ -434,6 +434,7 @@ async function openaiStream(payload, onChunk) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: bodyStr,
+    signal,
   });
 
   if (!response.ok) {
@@ -537,7 +538,7 @@ export async function testAIConnection() {
 
 // ── callAI ────────────────────────────────────────────────────────────────────
 
-export async function callAI({ stock, question, history = [], profile, isGeneral, isAutoAnalysis, details, news, gainers, losers, volume, extendedData, marketIndices, earnings, onChunk }) {
+export async function callAI({ stock, question, history = [], profile, isGeneral, isAutoAnalysis, details, news, gainers, losers, volume, extendedData, marketIndices, earnings, onChunk, signal }) {
   // Data blocks only — rules/personality/format live in backend SYSTEM_RULES
   const dataBlocks = buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings });
 
@@ -562,7 +563,7 @@ export async function callAI({ stock, question, history = [], profile, isGeneral
   };
 
   if (onChunk) {
-    return await openaiStream(payload, onChunk);
+    return await openaiStream(payload, onChunk, signal);
   }
 
   let data;

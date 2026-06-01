@@ -1,5 +1,7 @@
 'use strict';
 
+require('dotenv').config();
+
 const express = require('express');
 const cors    = require('cors');
 
@@ -13,6 +15,46 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_KEY) console.error('[server] GEMINI_API_KEY env var is not set — /api/chat will return 500');
 const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY, { apiVersion: 'v1' }) : null;
+
+// ── Redis Client ─────────────────────────────────────────────────────────────
+const { createClient } = require('redis');
+const REDIS_URL = process.env.REDIS_URL || null;
+let redisClient = null;
+
+if (REDIS_URL) {
+  redisClient = createClient({ url: REDIS_URL });
+  redisClient.on('error', err => console.error('[Redis Client Error]', err));
+  redisClient.connect()
+    .then(() => console.log(`[Redis] Connected successfully to ${REDIS_URL}`))
+    .catch(err => console.error('[Redis] Connection failed:', err.message));
+} else {
+  console.log('[Redis] REDIS_URL environment variable is not set — caching is disabled');
+}
+
+// ── Cache Helper ─────────────────────────────────────────────────────────────
+async function withCache(key, ttlSeconds, fetchFn) {
+  if (!redisClient) return fetchFn();
+  try {
+    const cached = await redisClient.get(key);
+    if (cached) {
+      console.log(`[Redis Cache HIT] Key: ${key}`);
+      return JSON.parse(cached);
+    }
+  } catch (err) {
+    console.warn(`[Redis Cache Read Error] Key: ${key}:`, err.message);
+  }
+
+  const data = await fetchFn();
+
+  try {
+    await redisClient.set(key, JSON.stringify(data), { EX: ttlSeconds });
+    console.log(`[Redis Cache MISS -> SET] Key: ${key} | TTL: ${ttlSeconds}s`);
+  } catch (err) {
+    console.warn(`[Redis Cache Write Error] Key: ${key}:`, err.message);
+  }
+
+  return data;
+}
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
@@ -36,23 +78,48 @@ app.use((req, res, next) => {
 });
 
 // ── Fetch helper ──────────────────────────────────────────────────────────────
-async function polyFetch(path) {
+async function polyFetch(path, retries = 3, delay = 1000) {
   const sep = path.includes('?') ? '&' : '?';
   const url = `${POLYGON_BASE}${path}${sep}apiKey=${POLYGON_KEY}`;
   console.log(`[proxy] → ${url.replace(POLYGON_KEY, '***')}`);
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Polygon ${res.status}: ${body.slice(0, 200)}`);
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        return await res.json();
+      }
+
+      const body = await res.text();
+      const status = res.status;
+      console.warn(`[polyFetch] Attempt ${i + 1} failed with status ${status}: ${body.slice(0, 100)}`);
+
+      // Avoid retrying on deterministic client errors (e.g. 401, 403, 404)
+      if (status === 401 || status === 403 || status === 404) {
+        throw new Error(`Polygon ${status}: ${body.slice(0, 200)}`);
+      }
+
+      if (i === retries - 1) {
+        throw new Error(`Polygon ${status} (after ${retries} retries): ${body.slice(0, 200)}`);
+      }
+    } catch (e) {
+      if (i === retries - 1 || e.message.includes('401') || e.message.includes('403') || e.message.includes('404')) {
+        throw e;
+      }
+      console.warn(`[polyFetch] Network/Timeout error on attempt ${i + 1}: ${e.message}`);
+    }
+
+    const backoff = delay * Math.pow(2, i);
+    await new Promise(resolve => setTimeout(resolve, backoff));
   }
-  return res.json();
 }
 
 // ── GET /api/gainers ──────────────────────────────────────────────────────────
 app.get('/api/gainers', async (req, res) => {
   try {
-    const data = await polyFetch('/v2/snapshot/locale/us/markets/stocks/gainers?include_otc=true');
+    const data = await withCache('gainers', 120, () =>
+      polyFetch('/v2/snapshot/locale/us/markets/stocks/gainers?include_otc=true')
+    );
     console.log(`[gainers] ${(data.tickers || []).length} tickers from Polygon`);
     res.json(data);
   } catch (e) {
@@ -64,7 +131,9 @@ app.get('/api/gainers', async (req, res) => {
 // ── GET /api/losers ───────────────────────────────────────────────────────────
 app.get('/api/losers', async (req, res) => {
   try {
-    const data = await polyFetch('/v2/snapshot/locale/us/markets/stocks/losers?include_otc=true');
+    const data = await withCache('losers', 120, () =>
+      polyFetch('/v2/snapshot/locale/us/markets/stocks/losers?include_otc=true')
+    );
     console.log(`[losers] ${(data.tickers || []).length} tickers from Polygon`);
     res.json(data);
   } catch (e) {
@@ -80,33 +149,37 @@ app.get('/api/losers', async (req, res) => {
 app.get('/api/quote/:ticker', async (req, res) => {
   const { ticker } = req.params;
   try {
-    const [v2, v3] = await Promise.all([
-      polyFetch(`/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(ticker)}`),
-      polyFetch(`/v3/snapshot?ticker.any_of=${encodeURIComponent(ticker)}`).catch(() => null),
-    ]);
+    const data = await withCache(`quote:${ticker.toUpperCase()}`, 15, async () => {
+      const [v2, v3] = await Promise.all([
+        polyFetch(`/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(ticker)}`),
+        polyFetch(`/v3/snapshot?ticker.any_of=${encodeURIComponent(ticker)}`).catch(() => null),
+      ]);
 
-    const snap      = v2.ticker || (v2.tickers && v2.tickers[0]) || {};
-    const v3result  = (v3?.results || [])[0] || {};
-    const v3session = v3result.session || {};
+      const snap      = v2.ticker || (v2.tickers && v2.tickers[0]) || {};
+      const v3result  = (v3?.results || [])[0] || {};
+      const v3session = v3result.session || {};
 
-    // ── AH diagnostic log ───────────────────────────────────────────────────
-    console.log(`[quote/${ticker}] v2.lastTrade.p=${snap.lastTrade?.p ?? 'null'}  day.c=${snap.day?.c}` +
-      `  v3.session.price=${v3session.price ?? 'null'}` +
-      `  v3.late_change=${v3session.late_trading_change ?? 'null'}` +
-      `  v3.market_status=${v3result.market_status ?? 'null'}`);
+      // ── AH diagnostic log ───────────────────────────────────────────────────
+      console.log(`[quote/${ticker}] v2.lastTrade.p=${snap.lastTrade?.p ?? 'null'}  day.c=${snap.day?.c}` +
+        `  v3.session.price=${v3session.price ?? 'null'}` +
+        `  v3.late_change=${v3session.late_trading_change ?? 'null'}` +
+        `  v3.market_status=${v3result.market_status ?? 'null'}`);
 
-    // Attach v3 session block so mapSnapshot can use AH/PM prices
-    snap._v3session = {
-      price:          v3session.price          ?? null,
-      lateChange:     v3session.late_trading_change        ?? null,
-      lateChangePct:  v3session.late_trading_change_percent ?? null,
-      earlyChange:    v3session.early_trading_change        ?? null,
-      earlyChangePct: v3session.early_trading_change_percent ?? null,
-      lastUpdated:    v3session.last_updated   ?? null,
-      marketStatus:   v3result.market_status   ?? null,
-    };
+      // Attach v3 session block so mapSnapshot can use AH/PM prices
+      snap._v3session = {
+        price:          v3session.price          ?? null,
+        lateChange:     v3session.late_trading_change        ?? null,
+        lateChangePct:  v3session.late_trading_change_percent ?? null,
+        earlyChange:    v3session.early_trading_change        ?? null,
+        earlyChangePct: v3session.early_trading_change_percent ?? null,
+        lastUpdated:    v3session.last_updated   ?? null,
+        marketStatus:   v3result.market_status   ?? null,
+      };
 
-    res.json({ ticker: snap });
+      return { ticker: snap };
+    });
+
+    res.json(data);
   } catch (e) {
     console.error(`[quote/${ticker}] error:`, e.message);
     res.status(502).json({ error: e.message });
@@ -677,6 +750,8 @@ app.post('/api/chat', async (req, res) => {
     return res.status(500).json({ error: 'GEMINI_API_KEY not configured on server' });
   }
 
+  const { queryHistoricalDataFromBigQuery } = require('./gcpServices');
+
   const { messages, temperature = 0.2, max_tokens = 1800, stream = false, currentTicker, language = 'en', profileContext = '' } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages array is required' });
@@ -763,6 +838,17 @@ app.post('/api/chat', async (req, res) => {
           const rr     = (risk > 0 ? (t1 - entry) / risk : 0).toFixed(1);
           block.push(`SMART STOP LOSS & TARGETS: Entry=$${fmt(entry)} Stop=$${fmt(stop)} T1=$${fmt(t1)} T2=$${fmt(t2)} R/R=1:${rr} DayLow=$${fmt(low)} DayHigh=$${fmt(high)}`);
         }
+
+        // Ingest advanced metrics from BigQuery
+        try {
+          const bqMetrics = await queryHistoricalDataFromBigQuery(t);
+          if (bqMetrics && bqMetrics.avgDailyVolatility != null) {
+            block.push(`ADVANCED ANALYTICS (from BigQuery): Avg Volatility: ${bqMetrics.avgDailyVolatility}%, Relative Vol (RVOL): ${bqMetrics.relativeVolumeRatio}x, Option Put/Call Ratio: ${bqMetrics.optionsPutCallRatio}, Sector Momentum Anomaly: ${bqMetrics.sectorMomentumAnomaly} (${bqMetrics.dataSource})`);
+          }
+        } catch (bqErr) {
+          console.warn('[BigQuery Enrichment Error]', bqErr.message);
+        }
+
         if (description) block.push(`Description: ${description}`);
         const meta = [];
         if (employees) meta.push(`Employees: ${Number(employees).toLocaleString()}`);
@@ -915,6 +1001,56 @@ app.post('/api/auth/verify-otp', (req, res) => {
 
   otpStore.delete(email.toLowerCase());
   res.json({ success: true, verified: true });
+});
+
+// ── POST /api/agent/chat — Google Managed Agents API Gateway ──────────────────
+const { AGENT_CONFIG } = require('./agentConfig');
+
+app.post('/api/agent/chat', async (req, res) => {
+  const { messages, currentTicker, language = 'en' } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array is required' });
+  }
+
+  const lastMsg = messages[messages.length - 1];
+  console.log(`[Managed Agents API] Delegating query to Google ADK Supervisor: "${lastMsg.content.slice(0, 50)}..."`);
+
+  // Simple, elegant mocking/stub routing for when GOOGLE_CLOUD_PROJECT is not in cloud GKE
+  const isCloudGcp = !!process.env.GOOGLE_CLOUD_PROJECT;
+  if (!isCloudGcp) {
+    console.log('[Managed Agents API] Local sandbox stub: routing directly to default Gemini engine');
+    // Fall back seamlessly to local genAI client
+    return res.redirect(307, '/api/chat');
+  }
+
+  // Under cloud GKE environment, this would call the actual Google Cloud Managed Agents REST API:
+  try {
+    const url = `https://${AGENT_CONFIG.platform.location}-aiplatform.googleapis.com/v1beta1/projects/${AGENT_CONFIG.platform.projectId}/locations/${AGENT_CONFIG.platform.location}/agents/supervisor:chat`;
+    
+    // Call the actual Google Cloud Agent endpoint
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GCP_ACCESS_TOKEN || ''}`
+      },
+      body: JSON.stringify({
+        query: lastMsg.content,
+        languageCode: language,
+        parameters: { currentTicker }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google Managed Agent API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return res.json(result);
+  } catch (err) {
+    console.error('[Managed Agents API] Failed to invoke Google Agent:', err.message);
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // ── Health check ──────────────────────────────────────────────────────────────
