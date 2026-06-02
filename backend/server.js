@@ -547,6 +547,7 @@ const CHAT_STOP_WORDS = new Set([
   'NADA', 'SIDO', 'ELLO', 'USAN', 'PIDE', 'GANA', 'MALA', 'MALO',
   'OTRO', 'OTRA', 'OTROS', 'OTRAS', 'AQUEL', 'VENDER', 'INVERTIR', 'COMPRA', 'COMPRAR',
   'OPINA', 'OPINAS', 'RECOMIENDA', 'RECOMIENDAS', 'SUGIERE', 'SUGIERO', 'AHORA', 'MISMO', 'MISMA',
+  'SIGUE', 'SIGUES', 'CAYENDO', 'SUBIENDO', 'SOPORTE', 'RESISTENCIA', 'PRECIO', 'NIVEL', 'NIVELES',
   // Spanish preterite verb forms (past tense conjugations)
   'CERRO', 'MOVIO', 'ABRIO', 'SUBIO', 'BAJO',  'ALZO',  'LLEGO',
   'SALIO', 'ENTRO', 'GANO',  'PUSO',  'PUDO',  'VINO',  'SUPO',
