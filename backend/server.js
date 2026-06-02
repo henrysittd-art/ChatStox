@@ -518,7 +518,7 @@ const CHAT_STOP_WORDS = new Set([
   'WHO', 'HOW', 'WHY', 'BOTH', 'EACH', 'SUCH', 'SOME', 'MOST',
   'MORE', 'LESS', 'VERY', 'JUST', 'ONLY', 'ALSO', 'EVEN',
   'HAVE', 'HAS', 'HAD', 'BEEN', 'WERE', 'DOES', 'DONE',
-  'THEY', 'THEM', 'THEIR', 'THERE', 'YOUR', 'WOULD', 'COULD', 'SHOULD',
+  'THEY', 'THEM', 'THEIR', 'THERE', 'HERE', 'YOUR', 'WOULD', 'COULD', 'SHOULD',
   'GIVE', 'SHOW', 'TELL', 'FIND', 'MAKE', 'TAKE', 'LOOK', 'KNOW',
   'LIKE', 'WANT', 'NEED', 'CALL', 'HOLD', 'SELL', 'STOP', 'WAIT',
   'BACK', 'GOOD', 'WELL', 'DOWN', 'SAME', 'LONG', 'HIGH', 'LAST',
@@ -531,7 +531,7 @@ const CHAT_STOP_WORDS = new Set([
   'YTD', 'OTC', 'SEC', 'FED', 'GDP', 'CPI', 'PMI', 'RSI',
   'ATH', 'ATL', 'EST', 'EDT', 'ET', 'FX', 'IV', 'OI',
   // Spanish articles / prepositions / pronouns (single and short words)
-  'EL', 'LA', 'AL', 'UN', 'SE', 'ME', 'TE', 'LE', 'NO', 'SIN', 'DE', 'EN', 'Y', 'O', 'MI', 'TU', 'SU', 'NOS', 'SUS', 'MIS', 'TUS',
+  'EL', 'LA', 'AL', 'UN', 'SE', 'ME', 'TE', 'LE', 'NO', 'SIN', 'DE', 'EN', 'ES', 'Y', 'O', 'MI', 'TU', 'SU', 'NOS', 'SUS', 'MIS', 'TUS',
   // Spanish function words / verbs (1-5 chars after accent-stripping)
   'QUE', 'CON', 'POR', 'DEL', 'LOS', 'LAS', 'UNA', 'UNO', 'UNOS', 'UNAS',
   'MAS', 'MUY', 'HOY', 'YA', 'SI', 'SU', 'SON', 'SER', 'HAY', 'FUE', 'ERA',
@@ -907,10 +907,13 @@ app.post('/api/chat', async (req, res) => {
   // In Market Chat (no locked currentTicker) the user frequently refers to a stock
   // discussed earlier in an implicit way ("¿en cuánto está ahora mismo?", "vale la pena?").
   // If the current message has no explicit ticker, resolve the most recently mentioned
-  // ticker from conversation history so we still enrich live data and don't refuse.
+  // ticker from conversation history (scanning USER turns only to avoid false-positives
+  // from assistant filler words like "Here's the thing" matching ticker 'HERE')
+  // so we still enrich live data and don't refuse.
   let contextTicker = null;
   if (!currentTicker && msgTickers.length === 0) {
     for (let i = nonSystem.length - 2; i >= 0; i--) {
+      if (nonSystem[i].role !== 'user') continue;
       const found = extractTickersFromMessage(nonSystem[i].content || '');
       const candidate = found.find(t => t !== 'SPY' && t !== 'QQQ');
       if (candidate) { contextTicker = candidate; break; }
