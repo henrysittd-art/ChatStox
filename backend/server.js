@@ -1,6 +1,19 @@
 'use strict';
 
-require('dotenv').config();
+const path = require('path');
+const fs = require('fs');
+
+// Load environment variables from current directory or parent directory fallback
+const localEnvPath = path.resolve(process.cwd(), '.env');
+const rootEnvPath = path.resolve(__dirname, '../.env');
+
+if (fs.existsSync(localEnvPath)) {
+  require('dotenv').config({ path: localEnvPath, override: true });
+} else if (fs.existsSync(rootEnvPath)) {
+  require('dotenv').config({ path: rootEnvPath, override: true });
+} else {
+  require('dotenv').config({ override: true });
+}
 
 const express = require('express');
 const cors    = require('cors');
@@ -12,9 +25,38 @@ const POLYGON_KEY  = process.env.POLYGON_API_KEY || 'YsPT9O6G9E5p52c3QRj7ddHTZjg
 const POLYGON_BASE = 'https://api.polygon.io';
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
+
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_KEY) console.error('[server] GEMINI_API_KEY env var is not set — /api/chat will return 500');
 const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
+
+// Modern Google Gen AI SDK in Vertex mode — uses Cloud Run service-account IAM
+// credentials (no API key, no AI Studio free-tier quota limit).
+const VERTEX_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'chat-stox';
+const VERTEX_LOCATION = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
+let vertexAIClient = null;
+try {
+  vertexAIClient = new GoogleGenAI({
+    vertexai: true,
+    project: VERTEX_PROJECT,
+    location: VERTEX_LOCATION,
+  });
+  console.log(`[Vertex AI] Initialized @google/genai (vertex) for ${VERTEX_PROJECT}/${VERTEX_LOCATION}.`);
+} catch (vErr) {
+  console.warn('[Vertex AI] Could not initialize @google/genai client (will fallback to AI Studio):', vErr.message);
+}
+
+// Modern AI Studio client (API-key based) for fallback when Vertex is unavailable.
+let studioGenAI = null;
+try {
+  if (GEMINI_KEY) {
+    studioGenAI = new GoogleGenAI({ apiKey: GEMINI_KEY });
+    console.log('[AI Studio] Initialized @google/genai (api-key) fallback client.');
+  }
+} catch (sErr) {
+  console.warn('[AI Studio] Could not initialize @google/genai api-key client:', sErr.message);
+}
 
 // ── Redis Client ─────────────────────────────────────────────────────────────
 const { createClient } = require('redis');
@@ -58,15 +100,26 @@ async function withCache(key, ttlSeconds, fetchFn) {
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: [
-    'http://localhost:8081',
-    'http://localhost:19006',
-    'http://localhost:19000',
-    'http://127.0.0.1:8081',
-    'http://127.0.0.1:19006',
-    'https://chatstox.com',
-    'https://www.chatstox.com',
-  ],
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    const allowedPatterns = [
+      /localhost/,
+      /127\.0\.0\.1/,
+      /chatstox-frontend-.*\.run\.app/,
+      /chatstox-backend-.*\.run\.app/,
+      /chat-stox.*\.firebaseapp\.com/,
+      /chat-stox.*\.web\.app/,
+      /chatstox\.com/,
+      /skyride\.city/
+    ];
+    const isAllowed = allowedPatterns.some(pattern => pattern.test(origin));
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST'],
   credentials: true,
 }));
@@ -746,8 +799,8 @@ async function withRetry(fn, label = '') {
 // Returns OpenAI-compatible JSON so the frontend needs no changes.
 // Supports streaming SSE: relays Gemini chunks as OpenAI-style delta events.
 app.post('/api/chat', async (req, res) => {
-  if (!genAI) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY not configured on server' });
+  if (!vertexAIClient && !genAI) {
+    return res.status(500).json({ error: 'Neither Vertex AI nor GEMINI_API_KEY are configured on server' });
   }
 
   const { queryHistoricalDataFromBigQuery } = require('./gcpServices');
@@ -892,79 +945,149 @@ app.post('/api/chat', async (req, res) => {
 
   console.log('[INJECTED CONTEXT]', realtimeBlock?.substring(0, 200));
 
-  try {
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      generationConfig: { maxOutputTokens: Math.max(Number(max_tokens) || 2400, 2400), temperature },
-    });
+  const contents = [
+    ...history,
+    { role: 'user', parts: [{ text: lastMsg.content }] },
+  ];
 
-    const contents = [
-      ...history,
-      { role: 'user', parts: [{ text: lastMsg.content }] },
-    ];
+  const MODEL_VERTEX = process.env.VERTEX_MODEL || 'gemini-2.5-flash'; // Vertex AI model (IAM, no quota cap)
+  const MODEL_STUDIO = process.env.STUDIO_MODEL || 'gemini-2.5-flash';     // AI Studio fallback model
 
-    const callConfig = {
-      contents,
-      tools: [{ googleSearchRetrieval: {} }],
-      ...(systemInstruction ? { systemInstruction } : {}),
-    };
+  // Build a generation config shared across SDK calls.
+  const genConfig = {
+    maxOutputTokens: Math.max(Number(max_tokens) || 2400, 2400),
+    temperature,
+    ...(systemInstruction ? { systemInstruction } : {}),
+    tools: [{ googleSearch: {} }],
+  };
 
-    if (stream) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 110000);
-
+  if (stream) {
+    // 1. Try Vertex AI first (native GCP IAM credentials, unlimited quota)
+    if (vertexAIClient) {
       try {
-        // Delay header flush until we have a successful stream — allows retry on 503
-        const result = await withRetry(() => model.generateContentStream(callConfig), 'stream');
+        console.log(`[/api/chat] [Vertex AI] Streaming via native GCP ${VERTEX_LOCATION} using ${MODEL_VERTEX}...`);
+        const responseStream = await withRetry(() => vertexAIClient.models.generateContentStream({
+          model: MODEL_VERTEX,
+          contents,
+          config: genConfig,
+        }), 'vertex-stream');
 
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders();
 
-        for await (const chunk of result.stream) {
-          if (controller.signal.aborted) break;
-          const token = chunk.text();
+        for await (const chunk of responseStream) {
+          const token = chunk.text;
           if (token) {
             res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: token } }] })}\n\n`);
           }
         }
         res.write('data: [DONE]\n\n');
-      } catch (e) {
-        console.error('[/api/chat] Gemini stream error:', e.message);
-        if (!res.headersSent) res.status(502).json({ error: e.message });
-      } finally {
-        clearTimeout(timeoutId);
         res.end();
+        return;
+      } catch (vStreamErr) {
+        console.error('[/api/chat] [Vertex AI] Streaming failed, trying AI Studio fallback:', vStreamErr.message);
       }
-      return;
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 110000);
-    const result = await withRetry(() => Promise.race([
-      model.generateContent(callConfig),
-      new Promise((_, reject) =>
-        controller.signal.addEventListener('abort', () => reject(new Error('Gemini timeout after 55s')))
-      ),
-    ]), 'non-stream');
-    clearTimeout(timeoutId);
-    let text = result.response.text();
-    // Retry up to 3x on empty response — Gemini occasionally returns blank on first call
-    for (let attempt = 1; !text && attempt <= 3; attempt++) {
-      const delay = attempt * 1500;
-      console.warn(`[/api/chat] Empty response from Gemini, retry ${attempt}/3 in ${delay}ms...`);
-      await new Promise(r => setTimeout(r, delay));
-      const retryResult = await model.generateContent(callConfig).catch(() => null);
-      if (retryResult) text = retryResult.response.text() || '';
+    // 2. Fallback to Google AI Studio stream
+    if (!studioGenAI) {
+      return res.status(500).json({ error: 'AI Studio and Vertex AI are both unavailable.' });
     }
-    console.log(`[/api/chat] ✓ Gemini ${text.length} chars`);
+
+    try {
+      console.log(`[/api/chat] [AI Studio] Streaming fallback via Google AI Studio using ${MODEL_STUDIO}...`);
+      const result = await withRetry(() => studioGenAI.models.generateContentStream({
+        model: MODEL_STUDIO,
+        contents,
+        config: genConfig,
+      }), 'studio-stream');
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+
+      for await (const chunk of result) {
+        const token = chunk.text;
+        if (token) {
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: token } }] })}\n\n`);
+        }
+      }
+      res.write('data: [DONE]\n\n');
+      res.end();
+      return;
+    } catch (e) {
+      console.error('[/api/chat] [AI Studio] Streaming fallback failed:', e.message);
+      if (!res.headersSent) res.status(502).json({ error: e.message });
+      res.end();
+      return;
+    }
+  }
+
+  // Non-stream execution
+  try {
+    let text = '';
+    let responseSucceeded = false;
+
+    // 1. Try Vertex AI first
+    if (vertexAIClient) {
+      try {
+        console.log(`[/api/chat] [Vertex AI] Generating content (non-stream) using ${MODEL_VERTEX}...`);
+        const vResult = await withRetry(() => vertexAIClient.models.generateContent({
+          model: MODEL_VERTEX,
+          contents,
+          config: genConfig,
+        }), 'vertex-non-stream');
+
+        text = (vResult && vResult.text) || '';
+        if (text) {
+          responseSucceeded = true;
+          console.log(`[/api/chat] ✓ Vertex AI generated ${text.length} chars`);
+        }
+      } catch (vCallErr) {
+        console.error('[/api/chat] [Vertex AI] Non-stream failed, trying AI Studio fallback:', vCallErr.message);
+      }
+    }
+
+    // 2. Fallback to Google AI Studio if Vertex failed or was not initialized
+    if (!responseSucceeded) {
+      if (!studioGenAI) {
+        throw new Error('Both Vertex AI and Google AI Studio are unavailable or failed.');
+      }
+      console.log(`[/api/chat] [AI Studio] Falling back to Google AI Studio (non-stream) using ${MODEL_STUDIO}...`);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 110000);
+      const result = await withRetry(() => Promise.race([
+        studioGenAI.models.generateContent({ model: MODEL_STUDIO, contents, config: genConfig }),
+        new Promise((_, reject) =>
+          controller.signal.addEventListener('abort', () => reject(new Error('Gemini timeout after 110s')))
+        ),
+      ]), 'non-stream');
+      clearTimeout(timeoutId);
+
+      text = result.text || '';
+      // Retry up to 3x on empty response
+      for (let attempt = 1; !text && attempt <= 3; attempt++) {
+        const delay = attempt * 1500;
+        console.warn(`[/api/chat] Empty response from Gemini, retry ${attempt}/3 in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        const retryResult = await studioGenAI.models.generateContent({ model: MODEL_STUDIO, contents, config: genConfig }).catch(() => null);
+        if (retryResult) text = retryResult.text || '';
+      }
+      console.log(`[/api/chat] ✓ AI Studio generated ${text.length} chars`);
+    }
+
     res.json({ choices: [{ message: { content: text } }] });
   } catch (e) {
     console.error('[/api/chat] Gemini error:', e.message);
     res.status(502).json({ error: e.message });
   }
 });
+
+
 
 // ── Auth OTP endpoints ────────────────────────────────────────────────────────
 // In dev mode, codes are logged to console. In production, use email provider.

@@ -10,7 +10,7 @@
 
 'use strict';
 
-const BACKEND  = 'https://chatstox-production.up.railway.app';
+const BACKEND  = 'https://chatstox-backend-dudyphhb2a-uc.a.run.app';
 const MODEL    = 'gemini-2.0-flash';
 const WARN_MS  = 9_000;
 const FAIL_MS  = 30_000;

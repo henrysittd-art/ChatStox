@@ -57,16 +57,41 @@ function mapSnapshot(snap) {
   const prevDay = snap.prevDay || {};
   const lastTrade = snap.lastTrade || {};
   const lastQuote = snap.lastQuote || {};
+
+  let price = lastTrade.p ?? lastQuote.P ?? day.c ?? 0;
+  let volume = day.v ?? 0;
+  let open = day.o ?? 0;
+  let dayHigh = day.h ?? 0;
+  let dayLow = day.l ?? 0;
+  let vwap = day.vw ?? 0;
+
+  // Fallback to prevDay values if today's regular session has no data (e.g. market closed or pre-market)
+  if ((!price || price === 0) && prevDay.c && prevDay.c > 0) {
+    price = prevDay.c;
+  }
+  if ((!volume || volume === 0) && prevDay.v && prevDay.v > 0) {
+    volume = prevDay.v;
+  }
+  if ((!open || open === 0) && prevDay.o && prevDay.o > 0) {
+    open = prevDay.o;
+  }
+  if ((!dayHigh || dayHigh === 0) && prevDay.h && prevDay.h > 0) {
+    dayHigh = prevDay.h;
+  }
+  if ((!dayLow || dayLow === 0) && prevDay.l && prevDay.l > 0) {
+    dayLow = prevDay.l;
+  }
+
   return {
     ticker: snap.ticker || '',
     name: snap.name || snap.ticker || '',
-    price: lastTrade.p ?? lastQuote.P ?? day.c ?? 0,
+    price,
     changePercent: snap.todaysChangePerc ?? 0,
-    volume: day.v ?? 0,
-    open: day.o ?? 0,
-    dayHigh: day.h ?? 0,
-    dayLow: day.l ?? 0,
-    vwap: day.vw ?? 0,
+    volume,
+    open,
+    dayHigh,
+    dayLow,
+    vwap,
     previousClose: prevDay.c ?? 0,
     todaysChange: snap.todaysChange ?? 0,
   };

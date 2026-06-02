@@ -1318,6 +1318,7 @@ export default function StockChatScreen({ route, navigation }) {
     const updatedToSave = updated.filter(m => m.role !== 'session_divider');
     await AsyncStorage.setItem(`chat_${currentTicker}`, JSON.stringify(updatedToSave)).catch(() => {});
 
+    let streamingId = null;
     try {
       // Always fetch fresh Polygon data before every AI call so the system prompt
       // has the latest real price — prevents the AI from reverting to training data.
@@ -1361,7 +1362,7 @@ export default function StockChatScreen({ route, navigation }) {
 
       // Add streaming placeholder bubble; spinner hides automatically once bubble appears
       const streamTs = nowISO();
-      const streamingId = Date.now();
+      streamingId = Date.now();
       setMessages([...updated, { id: streamingId, role: 'assistant', content: '', time: streamTs, isStreaming: true }]);
 
       const aiText = await callAI({

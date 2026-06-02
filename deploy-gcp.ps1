@@ -19,19 +19,39 @@ gcloud config set project $PROJECT_ID
 Write-Host "`n[GCP] Deploying BACKEND service to Cloud Run..." -ForegroundColor Yellow
 cd backend
 
-# Securely retrieve GEMINI_API_KEY from environment or local .env file
+# Securely retrieve keys from environment or local/parent .env file
 $GEMINI_KEY = $env:GEMINI_API_KEY
-if (-not $GEMINI_KEY -and (Test-Path ".env")) {
-    $env_file = Get-Content ".env"
+$POLYGON_KEY = $env:POLYGON_API_KEY
+
+$ENV_PATH = ""
+if (Test-Path "../.env") {
+    $ENV_PATH = "../.env"
+} elseif (Test-Path ".env") {
+    $ENV_PATH = ".env"
+}
+
+if ($ENV_PATH) {
+    $env_file = Get-Content $ENV_PATH
     foreach ($line in $env_file) {
         if ($line -match "^GEMINI_API_KEY=(.*)$") {
-            $GEMINI_KEY = $Matches[1].Trim()
+            if (-not $GEMINI_KEY) {
+                $GEMINI_KEY = $Matches[1].Trim()
+            }
+        }
+        if ($line -match "^POLYGON_API_KEY=(.*)$") {
+            if (-not $POLYGON_KEY) {
+                $POLYGON_KEY = $Matches[1].Trim()
+            }
         }
     }
 }
 
+if (-not $POLYGON_KEY) {
+    $POLYGON_KEY = "YsPT9O6G9E5p52c3QRj7ddHTZjgBSFUM" # Fallback
+}
+
 if (-not $GEMINI_KEY) {
-    Write-Host "[Warning] GEMINI_API_KEY was not found in environment or backend/.env!" -ForegroundColor Yellow
+    Write-Host "[Warning] GEMINI_API_KEY was not found in environment, root/.env, or backend/.env!" -ForegroundColor Yellow
 }
 
 # Deploy backend using Cloud Build under the hood (zero-setup docker build on GCP)
@@ -39,7 +59,7 @@ gcloud run deploy chatstox-backend `
   --source . `
   --region $REGION `
   --allow-unauthenticated `
-  --set-env-vars="POLYGON_API_KEY=YsPT9O6G9E5p52c3QRj7ddHTZjgBSFUM,GEMINI_API_KEY=$GEMINI_KEY,GOOGLE_CLOUD_PROJECT=chat-stox"
+  --set-env-vars="POLYGON_API_KEY=$POLYGON_KEY,GEMINI_API_KEY=$GEMINI_KEY,GOOGLE_CLOUD_PROJECT=chat-stox"
 
 if ($LASTEXITCODE -ne 0) {
   Write-Host "`n[Error] Backend deployment failed." -ForegroundColor Red

@@ -1,5 +1,17 @@
 const fs = require('fs');
-require('dotenv').config();
+const path = require('path');
+
+// Load environment variables from current directory or parent directory fallback
+const localEnvPath = path.resolve(process.cwd(), '.env');
+const rootEnvPath = path.resolve(__dirname, '../.env');
+
+if (fs.existsSync(localEnvPath)) {
+  require('dotenv').config({ path: localEnvPath, override: true });
+} else if (fs.existsSync(rootEnvPath)) {
+  require('dotenv').config({ path: rootEnvPath, override: true });
+} else {
+  require('dotenv').config({ override: true });
+}
 
 const polygonKey = process.env.POLYGON_API_KEY || '';
 const apiUrl = process.env.API_URL || '';

@@ -12,7 +12,29 @@ function mapSnapshot(snap) {
 
   // v3 session.price is extended-hours-aware (AH/PM); v2 lastTrade.p is null
   // on Starter plan after close. Fall through to v2 fields then day.c.
-  const price = v3.price ?? lastTrade.p ?? lastQuote.P ?? day.c ?? 0;
+  let price = v3.price ?? lastTrade.p ?? lastQuote.P ?? day.c ?? 0;
+  let volume = day.v ?? 0;
+  let open = day.o ?? 0;
+  let dayHigh = day.h ?? 0;
+  let dayLow = day.l ?? 0;
+  let vwap = day.vw ?? 0;
+
+  // Fallback to prevDay values if today's regular session has no data (e.g. market closed or pre-market)
+  if ((!price || price === 0) && prevDay.c && prevDay.c > 0) {
+    price = prevDay.c;
+  }
+  if ((!volume || volume === 0) && prevDay.v && prevDay.v > 0) {
+    volume = prevDay.v;
+  }
+  if ((!open || open === 0) && prevDay.o && prevDay.o > 0) {
+    open = prevDay.o;
+  }
+  if ((!dayHigh || dayHigh === 0) && prevDay.h && prevDay.h > 0) {
+    dayHigh = prevDay.h;
+  }
+  if ((!dayLow || dayLow === 0) && prevDay.l && prevDay.l > 0) {
+    dayLow = prevDay.l;
+  }
 
   // v3 last_updated nanoseconds — prefer over v2 lastTrade.t for AH label
   const lastTradeTime = v3.lastUpdated ?? lastTrade.t ?? null;
@@ -32,11 +54,11 @@ function mapSnapshot(snap) {
     dayClose:      day.c   ?? 0,
     changePercent: todaysChangePerc,
     todaysChange,
-    volume:        day.v   ?? 0,
-    open:          day.o   ?? 0,
-    dayHigh:       day.h   ?? 0,
-    dayLow:        day.l   ?? 0,
-    vwap:          day.vw  ?? 0,
+    volume,
+    open,
+    dayHigh,
+    dayLow,
+    vwap,
     previousClose:  prevDay.c ?? 0,
     previousLow:    prevDay.l ?? 0,
     previousHigh:   prevDay.h ?? 0,

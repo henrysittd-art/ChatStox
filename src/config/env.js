@@ -1,6 +1,6 @@
 const ENV = {
   dev:  { API_URL: 'http://localhost:8080' },
-  prod: { API_URL: 'https://chatstox-production.up.railway.app' },
+  prod: { API_URL: 'https://chatstox-backend-dudyphhb2a-uc.a.run.app' },
 };
 
 const getEnvVars = () => {
