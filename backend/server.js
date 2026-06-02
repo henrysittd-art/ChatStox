@@ -531,7 +531,7 @@ const CHAT_STOP_WORDS = new Set([
   'YTD', 'OTC', 'SEC', 'FED', 'GDP', 'CPI', 'PMI', 'RSI',
   'ATH', 'ATL', 'EST', 'EDT', 'ET', 'FX', 'IV', 'OI',
   // Spanish articles / prepositions / pronouns (single and short words)
-  'EL', 'LA', 'AL', 'UN', 'SE', 'ME', 'TE', 'LE', 'NO', 'SIN', 'DE', 'EN', 'ES', 'Y', 'O', 'MI', 'TU', 'SU', 'NOS', 'SUS', 'MIS', 'TUS',
+  'EL', 'LA', 'AL', 'UN', 'SE', 'ME', 'TE', 'LE', 'NO', 'SIN', 'DE', 'EN', 'ES', 'Y', 'O', 'MI', 'TU', 'SU', 'NOS', 'SUS', 'MIS', 'TUS', 'LO', 'OS', 'HA', 'VA', 'HE', 'IR', 'DA', 'DI', 'VE', 'CO', 'CU', 'NI', 'TI', 'EX', 'RE',
   // Spanish function words / verbs (1-5 chars after accent-stripping)
   'QUE', 'CON', 'POR', 'DEL', 'LOS', 'LAS', 'UNA', 'UNO', 'UNOS', 'UNAS',
   'MAS', 'MUY', 'HOY', 'YA', 'SI', 'SU', 'SON', 'SER', 'HAY', 'FUE', 'ERA',
