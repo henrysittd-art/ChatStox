@@ -902,11 +902,26 @@ app.post('/api/chat', async (req, res) => {
   console.log(`[/api/chat] User Message: "${lastMsg.content}" | Extracted Tickers: ${JSON.stringify(msgTickers)}`);
   // If user explicitly mentions a ticker different from the loaded stock, enrich it first
   const msgPrimary = msgTickers.length > 0 ? msgTickers[0] : null;
+  // In Market Chat (no locked currentTicker) the user frequently refers to a stock
+  // discussed earlier in an implicit way ("¿en cuánto está ahora mismo?", "vale la pena?").
+  // If the current message has no explicit ticker, resolve the most recently mentioned
+  // ticker from conversation history so we still enrich live data and don't refuse.
+  let contextTicker = null;
+  if (!currentTicker && msgTickers.length === 0) {
+    for (let i = nonSystem.length - 2; i >= 0; i--) {
+      const found = extractTickersFromMessage(nonSystem[i].content || '');
+      const candidate = found.find(t => t !== 'SPY' && t !== 'QQQ');
+      if (candidate) { contextTicker = candidate; break; }
+    }
+    if (contextTicker) console.log(`[/api/chat] Resolved context ticker from history: ${contextTicker}`);
+  }
   const mentionedTickers = currentTicker
     ? (msgPrimary && msgPrimary !== currentTicker
         ? [msgPrimary, currentTicker, ...msgTickers.slice(1).filter(t => t !== currentTicker)].slice(0, 3)
         : [currentTicker, ...msgTickers.filter(t => t !== currentTicker)].slice(0, 3))
-    : ['SPY', 'QQQ', ...msgTickers.filter(t => t !== 'SPY' && t !== 'QQQ')].slice(0, 4);
+    : contextTicker
+      ? [contextTicker, ...msgTickers.filter(t => t !== 'SPY' && t !== 'QQQ' && t !== contextTicker)].slice(0, 3)
+      : ['SPY', 'QQQ', ...msgTickers.filter(t => t !== 'SPY' && t !== 'QQQ')].slice(0, 4);
   console.log(`[/api/chat] Consolidated Tickers for Enrichment: ${JSON.stringify(mentionedTickers)}`);
   let realtimeBlock = '';
   let noDataBlock = '';
@@ -1001,8 +1016,18 @@ app.post('/api/chat', async (req, res) => {
     ? '\n\nCRITICAL PRICE RULE: NEVER invent, estimate, or recall prices for specific stocks from training data. Only state prices that appear verbatim in the REAL-TIME DATA block above. If a stock\'s price is not in the real-time data, say exactly: "I don\'t have live data for that ticker right now — search for it in Stock Chat for a full analysis." Do not guess.'
     : '';
 
+  // When the user asks a follow-up about a stock discussed earlier (resolved from
+  // conversation history) and the live feed momentarily returned no snapshot
+  // (e.g. a transient API rate limit), allow restating the most recent price ALREADY
+  // quoted in THIS conversation instead of a hard refusal — but flag it as the last
+  // known quote rather than a fresh tick. This price exists in the chat history, so it
+  // is not a hallucination from training data.
+  const followUpFallbackRule = (!currentTicker && contextTicker && !realtimeBlock.includes(`REAL-TIME DATA for ${contextTicker}`))
+    ? `\n\nFOLLOW-UP CONTEXT: The user is asking about ${contextTicker}, which was already analyzed earlier in this conversation. The live feed did not return a fresh snapshot just now (likely a transient rate limit). DO NOT refuse. Instead, restate the most recent ${contextTicker} price you already provided earlier in this same conversation, and note it is the last known quote which may be slightly delayed. Suggest opening ${contextTicker} in Stock Chat for a live refresh.`
+    : '';
+
   // Merge: rules + profile + frontend data blocks + real-time Polygon enrichment + lock
-  const systemInstruction = fullSystemInstruction + realtimeBlock + noDataBlock + noPriceRule + currentStockLock;
+  const systemInstruction = fullSystemInstruction + realtimeBlock + noDataBlock + noPriceRule + followUpFallbackRule + currentStockLock;
 
   console.log('[INJECTED CONTEXT]', realtimeBlock?.substring(0, 200));
 
