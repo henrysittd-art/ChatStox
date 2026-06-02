@@ -557,6 +557,8 @@ const CHAT_STOP_WORDS = new Set([
   // VALE = "okay/worth" in "vale la pena", PENA = "worth", LENA = misc
   'VALE', 'PENA', 'LENA', 'VALE', 'SERA', 'PARA', 'CARA', 'CARO',
   'DEJA', 'TRAE', 'FIJO', 'VAMOS', 'VENGA', 'MIRA', 'DALE',
+  // Extra Spanish / English false-positive splits or words
+  'ALG', 'NDE', 'PONGO', 'LOSS', 'ALGUN', 'ALGUNA', 'ALGUNOS', 'ALGUNAS',
 ]);
 
 function extractTickersFromMessage(text) {
