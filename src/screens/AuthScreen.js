@@ -5,7 +5,9 @@ import {
   useWindowDimensions, ActivityIndicator, ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../services/supabase';
+import { auth, db } from '../config/firebase';
+import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile as firebaseUpdateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { LogoIcon } from '../components/ChatstoxLogo';
 
 const GREEN  = '#00C853';
@@ -42,45 +44,6 @@ function Checkmark() {
   );
 }
 
-// ── OTP digit boxes ───────────────────────────────────────────────────────────
-function OTPInput({ length = 6, value, onChange }) {
-  const inputs = useRef([]);
-  const handleChange = (text, idx) => {
-    const digit = text.replace(/\D/g, '').slice(-1);
-    const arr = value.split('');
-    arr[idx] = digit;
-    const next = arr.join('');
-    onChange(next);
-    if (digit && idx < length - 1) inputs.current[idx + 1]?.focus();
-  };
-  const handleKeyPress = (e, idx) => {
-    if (e.nativeEvent.key === 'Backspace' && !value[idx] && idx > 0) {
-      inputs.current[idx - 1]?.focus();
-      const arr = value.split('');
-      arr[idx - 1] = '';
-      onChange(arr.join(''));
-    }
-  };
-  return (
-    <View style={styles.otpRow}>
-      {Array.from({ length }).map((_, i) => (
-        <TextInput
-          key={i}
-          ref={r => { inputs.current[i] = r; }}
-          style={[styles.otpBox, value[i] ? styles.otpBoxFilled : null]}
-          value={value[i] || ''}
-          onChangeText={t => handleChange(t, i)}
-          onKeyPress={e => handleKeyPress(e, i)}
-          keyboardType="number-pad"
-          maxLength={1}
-          textAlign="center"
-          selectTextOnFocus
-        />
-      ))}
-    </View>
-  );
-}
-
 // ── Main AuthScreen ───────────────────────────────────────────────────────────
 export default function AuthScreen({ navigation }) {
   const { width } = useWindowDimensions();
@@ -88,27 +51,13 @@ export default function AuthScreen({ navigation }) {
   const cardWidth = isWide ? 420 : '100%';
 
   const [tab, setTab]               = useState('signin');
-  const [screen, setScreen]         = useState('main');   // 'main' | 'otp' | 'profile' | 'complete'
+  const [screen, setScreen]         = useState('main');   // 'main' | 'profile' | 'complete'
   const [email, setEmail]           = useState('');
-  const [otp, setOtp]               = useState('');
   const [firstName, setFirstName]   = useState('');
   const [lastName, setLastName]     = useState('');
   const [traderType, setTraderType] = useState('');
   const [error, setError]           = useState('');
   const [loading, setLoading]       = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
-
-  // Countdown for resend button
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const id = setTimeout(() => setResendTimer(t => t - 1), 1000);
-    return () => clearTimeout(id);
-  }, [resendTimer]);
-
-  // Auto-submit when all 6 digits filled
-  useEffect(() => {
-    if (otp.length === 6 && screen === 'otp') handleVerify();
-  }, [otp]);
 
   // Navigate to Main after completion
   useEffect(() => {
@@ -125,43 +74,25 @@ export default function AuthScreen({ navigation }) {
     }
     setLoading(true);
     try {
-      const { error: e } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: {
-          shouldCreateUser: true,
-          data: { language: 'en' },
-        },
-      });
-      if (e) throw e;
-      setResendTimer(60);
-      setScreen('otp');
-    } catch (e) {
-      setError(e.message || 'Failed to send code. Try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      // Derived secure password based on email for seamless passwordless experience
+      const password = 'ChatStoxPass!' + email.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanEmail = email.trim().toLowerCase();
 
-  const handleVerify = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const { data, error: e } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: otp,
-        type: 'email',
-      });
-      if (e) throw e;
-      const meta = data?.user?.user_metadata || {};
-      if (!meta.firstName) {
-        setScreen('profile');
-      } else {
-        await AsyncStorage.setItem('userProfile', JSON.stringify({ traderType: meta.traderType || 'general' }));
+      try {
+        // Try to sign in first
+        await signInWithEmailAndPassword(auth, cleanEmail, password);
         setScreen('complete');
+      } catch (err) {
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+          // Create user if not registered yet
+          await createUserWithEmailAndPassword(auth, cleanEmail, password);
+          setScreen('profile');
+        } else {
+          throw err;
+        }
       }
     } catch (e) {
-      setError(e.message || 'Invalid code. Try again.');
-      setOtp('');
+      setError(e.message || 'Failed to authenticate. Try again.');
     } finally {
       setLoading(false);
     }
@@ -173,10 +104,16 @@ export default function AuthScreen({ navigation }) {
     if (!traderType) return setError('Please select your trader type.');
     setLoading(true);
     try {
-      const { error: e } = await supabase.auth.updateUser({
-        data: { firstName: firstName.trim(), lastName: lastName.trim(), traderType },
+      await firebaseUpdateProfile(auth.currentUser, {
+        displayName: `${firstName.trim()} ${lastName.trim()}`.trim()
       });
-      if (e) throw e;
+
+      const docRef = doc(db, 'profiles', auth.currentUser.uid);
+      await setDoc(docRef, {
+        traderType,
+        onboardingComplete: true
+      }, { merge: true });
+
       await AsyncStorage.setItem('userProfile', JSON.stringify({ traderType }));
       setScreen('complete');
     } catch (e) {
@@ -188,15 +125,15 @@ export default function AuthScreen({ navigation }) {
 
   const handleGoogle = async () => {
     setError('');
+    setLoading(true);
     try {
-      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
-      const { error: e } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo },
-      });
-      if (e) throw e;
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      setScreen('complete');
     } catch (e) {
       setError(e.message || 'Google sign-in failed. Use email instead.');
+    } finally {
+      setLoading(false);
     }
   };
 

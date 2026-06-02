@@ -6,7 +6,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { supabase } from '../services/supabase';
+import { auth, db } from '../config/firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { LogoIcon } from '../components/ChatstoxLogo';
 
 const GREEN  = '#00C853';
@@ -145,44 +146,37 @@ export default function OnboardingScreen({ navigation }) {
 
     // Get the live session — user from useAuth() may be null if the context
     // hasn't finished restoring when the onboarding screen first mounts.
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) {
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
       Alert.alert('Error', 'No active session. Please sign in again.');
       setSaving(false);
       return;
     }
-    const userId = session.user.id;
 
-    // Write AsyncStorage backup first — survives any Supabase failure.
+    // Write AsyncStorage backup first — survives any network failure.
     await AsyncStorage.setItem('onboarding_complete', 'true').catch(() => {});
 
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({
-        id:                  userId,
-        trader_type:         answers.traderType,
-        sectors:             answers.sectors || [],
-        likes_penny_stocks:  answers.likesPennyStocks ?? false,
-        risk_tolerance:      answers.riskTolerance,
-        capital_range:       answers.capitalRange,
-        language:            lang || 'en',
-        onboarding_complete: true,
-      }, { onConflict: 'id' });
+    try {
+      const docRef = doc(db, 'profiles', userId);
+      await setDoc(docRef, {
+        traderType:         answers.traderType,
+        sectors:            answers.sectors || [],
+        likesPennyStocks:   answers.likesPennyStocks ?? false,
+        riskTolerance:      answers.riskTolerance,
+        capitalRange:       answers.capitalRange,
+        language:           lang || 'en',
+        onboardingComplete: true,
+      }, { merge: true });
 
-    if (error) {
+      // Verify the write landed correctly
+      const docSnap = await getDoc(docRef);
+      console.log('[Onboarding] Verify after save:', docSnap.exists() ? docSnap.data() : 'not found');
+    } catch (error) {
       console.error('[Onboarding] Save error:', error);
       Alert.alert('Error saving profile', error.message);
       setSaving(false);
       return;
     }
-
-    // Verify the write landed correctly
-    const { data: verify, error: verifyError } = await supabase
-      .from('profiles')
-      .select('onboarding_complete, trader_type, sectors')
-      .eq('id', userId)
-      .single();
-    console.log('[Onboarding] Verify after save:', verify, verifyError);
 
     await reloadProfile();
     navigation.replace('Main');

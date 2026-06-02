@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { db } from '../config/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
 const LanguageContext = createContext({ lang: 'en', setLang: () => {} });
@@ -259,10 +260,7 @@ export function LanguageProvider({ children }) {
       try {
         // update (not upsert) so we never accidentally create a partial profile
         // row that would have onboarding_complete: false
-        await supabase
-          .from('profiles')
-          .update({ language: newLang })
-          .eq('id', user.id);
+        await updateDoc(doc(db, 'profiles', user.id), { language: newLang });
       } catch (_) { /* non-fatal */ }
     }
   };

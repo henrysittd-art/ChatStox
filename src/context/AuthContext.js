@@ -1,36 +1,40 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../services/supabase';
+import { auth, db } from '../config/firebase';
+import { onAuthStateChanged, signOut as firebaseSignOut, updateProfile as firebaseUpdateProfile } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const AuthContext = createContext(null);
 
 // Separate key so a single AsyncStorage.getItem('onboarding_complete') is fast
 const ONBOARDING_KEY = 'onboarding_complete';
 
-function mapUser(supabaseUser) {
-  if (!supabaseUser) return null;
-  const meta = supabaseUser.user_metadata || {};
+function mapUser(firebaseUser) {
+  if (!firebaseUser) return null;
+  const displayName = firebaseUser.displayName || '';
+  const [first = '', ...rest] = displayName.split(' ');
+  const last = rest.join(' ');
   return {
-    id:         supabaseUser.id,
-    email:      supabaseUser.email,
-    firstName:  meta.firstName  || '',
-    lastName:   meta.lastName   || '',
-    traderType: meta.traderType || '',
-    authMethod: meta.authMethod || 'email',
+    id:         firebaseUser.uid,
+    email:      firebaseUser.email,
+    firstName:  first,
+    lastName:   last,
+    traderType: '',
+    authMethod: 'email',
   };
 }
 
-function mapProfile(row) {
-  if (!row) return null;
+function mapProfile(docData) {
+  if (!docData) return null;
   return {
-    traderType:         row.trader_type    || '',
-    sectors:            row.sectors        || '',
-    likesPennyStocks:   row.likes_penny_stocks ?? null,
-    riskTolerance:      row.risk_tolerance || '',
-    capitalRange:       row.capital_range  || '',
-    language:           row.language       || 'en',
+    traderType:         docData.traderType    || docData.trader_type || '',
+    sectors:            docData.sectors        || '',
+    likesPennyStocks:   docData.likesPennyStocks ?? docData.likes_penny_stocks ?? null,
+    riskTolerance:      docData.riskTolerance || docData.risk_tolerance || '',
+    capitalRange:       docData.capitalRange  || docData.capital_range || '',
+    language:           docData.language       || 'en',
     // !! for explicit boolean — guards against null/0/'false' from DB
-    onboardingComplete: !!row.onboarding_complete,
+    onboardingComplete: !!(docData.onboardingComplete ?? docData.onboarding_complete),
   };
 }
 
@@ -72,26 +76,23 @@ export function AuthProvider({ children }) {
     if (!userId) { setProfile(null); setProfileLoading(false); return; }
     setProfileLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const docRef = doc(db, 'profiles', userId);
+      const docSnap = await getDoc(docRef);
 
-      if (error && error.code !== 'PGRST116') {
-        // PGRST116 = row not found (new user), everything else is unexpected
-        console.warn('[AuthContext] profiles fetch error:', error.message);
+      let mapped = null;
+      if (docSnap.exists()) {
+        console.log('[AuthContext] Firebase profile raw:', docSnap.data());
+        mapped = mapProfile(docSnap.data());
+      } else {
+        console.log('[AuthContext] Profile does not exist yet in Firestore.');
       }
 
-      console.log('[AuthContext] Supabase profile raw:', data);
-      let mapped = mapProfile(data);
-
-      // Supabase is authoritative, but if it returned no row or onboarding=false,
-      // cross-check AsyncStorage — a previous Supabase write may have silently failed.
+      // Firestore is authoritative, but if it returned no row or onboarding=false,
+      // cross-check AsyncStorage — a previous Firestore write may have silently failed.
       if (!mapped?.onboardingComplete) {
         const cached = await AsyncStorage.getItem(ONBOARDING_KEY).catch(() => null);
         if (cached === 'true') {
-          console.log('[AuthContext] onboarding_complete not in Supabase — restoring from AsyncStorage backup');
+          console.log('[AuthContext] onboarding_complete not in Firestore — restoring from AsyncStorage backup');
           mapped = mapped
             ? { ...mapped, onboardingComplete: true }
             : { traderType: '', sectors: '', likesPennyStocks: null,
@@ -101,10 +102,12 @@ export function AuthProvider({ children }) {
       }
 
       setProfile(mapped);
-      await persistToStorage(mapped);
+      if (mapped) {
+        await persistToStorage(mapped);
+      }
     } catch (e) {
       console.warn('[AuthContext] loadProfile unexpected error:', e.message);
-      // On total Supabase failure, fall back to AsyncStorage so user isn't stuck
+      // On total Firestore failure, fall back to AsyncStorage so user isn't stuck
       try {
         const cached = await AsyncStorage.getItem(ONBOARDING_KEY);
         if (cached === 'true') {
@@ -127,60 +130,49 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const u = mapUser(session?.user ?? null);
-      setUser(u);
-      setLoading(false); // unblock app immediately — profile loads in background
-      if (u?.id) loadProfile(u.id);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Only handle real auth transitions — SIGNED_IN (new login) and SIGNED_OUT (logout).
-      // INITIAL_SESSION is already handled by getSession() above.
-      // TOKEN_REFRESHED and USER_UPDATED must be ignored: they fire silently in the
-      // background and calling setUser/loadProfile on them resets the Stack navigator
-      // to its initial route, causing the auto-redirect-to-Home bug.
-      if (event === 'SIGNED_IN') {
-        const u = mapUser(session?.user ?? null);
-        if (u?.id) setProfileLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const u = mapUser(firebaseUser);
+        setProfileLoading(true);
         setUser(u);
-        if (u?.id) loadProfile(u.id);
-      } else if (event === 'SIGNED_OUT') {
+        loadProfile(u.id);
+      } else {
         setUser(null);
         setProfile(null);
         setProfileLoading(false);
       }
+      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   const saveProfile = async (data) => {
     if (!user?.id) {
       throw new Error('[AuthContext] saveProfile: no authenticated user id');
     }
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({ id: user.id, ...data }, { onConflict: 'id' });
-    if (error) {
-      console.error('[AuthContext] saveProfile upsert error:', error.message, error.code);
-      throw error;
-    }
+    const docRef = doc(db, 'profiles', user.id);
+    await setDoc(docRef, data, { merge: true });
+    
     profileLoadedRef.current = false; // allow reload after intentional save
     await loadProfile(user.id);
   };
 
   const signOut = async () => {
     profileLoadedRef.current = false; // reset so next login can load fresh profile
-    await supabase.auth.signOut();
+    await firebaseSignOut(auth);
+    setUser(null);
     setProfile(null);
     await AsyncStorage.multiRemove(['userProfile', ONBOARDING_KEY]).catch(() => {});
   };
 
   const updateProfile = async (updates) => {
-    const { data, error } = await supabase.auth.updateUser({ data: updates });
-    if (error) throw error;
-    setUser(mapUser(data.user));
+    if (auth.currentUser) {
+      await firebaseUpdateProfile(auth.currentUser, {
+        displayName: `${updates.firstName || ''} ${updates.lastName || ''}`.trim()
+      });
+      setUser(mapUser(auth.currentUser));
+    }
   };
 
   // Explicit reload — resets the guard so callers (e.g. OnboardingScreen after save)

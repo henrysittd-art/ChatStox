@@ -1,16 +1,18 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
-// Replace with your actual Firebase project config
+// Real Firebase project config created dynamically for chat-stox
 const firebaseConfig = {
-  apiKey:            'YOUR_API_KEY',
-  authDomain:        'YOUR_PROJECT.firebaseapp.com',
-  projectId:         'YOUR_PROJECT_ID',
-  storageBucket:     'YOUR_PROJECT.appspot.com',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId:             'YOUR_APP_ID',
+  apiKey:            'AIzaSyBRdq5VRS5xUAU75lBmA7N-a09u86XhDNk',
+  authDomain:        'chat-stox.firebaseapp.com',
+  projectId:         'chat-stox',
+  storageBucket:     'chat-stox.firebasestorage.app',
+  messagingSenderId: '748694272456',
+  appId:             '1:748694272456:web:8b4f8d7c595f46a9ac28fd',
 };
 
 const app  = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 export default app;
