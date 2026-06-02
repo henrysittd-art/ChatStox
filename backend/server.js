@@ -834,8 +834,11 @@ Emojis: 🔴 risk, 📊 data, ⚡ catalyst, 🎯 levels, 🧠 opinion. Use spari
 const RETRY_DELAYS = [1000, 2000, 3000];
 
 function isRetryable(e) {
-  const msg = e?.message || '';
-  return msg.includes('503') || msg.includes('overloaded') || msg.includes('Service Unavailable') || e?.status === 503;
+  const msg = (e?.message || '').toLowerCase();
+  const status = e?.status;
+  return msg.includes('503') || msg.includes('429') || msg.includes('overloaded') ||
+         msg.includes('service unavailable') || msg.includes('too many requests') ||
+         msg.includes('resource_exhausted') || status === 503 || status === 429;
 }
 
 async function withRetry(fn, label = '') {
@@ -1043,7 +1046,7 @@ app.post('/api/chat', async (req, res) => {
   ];
 
   const MODEL_VERTEX = process.env.VERTEX_MODEL || 'gemini-1.5-flash'; // Vertex AI model (IAM, no quota cap)
-  const MODEL_STUDIO = process.env.STUDIO_MODEL || 'gemini-1.5-flash';     // AI Studio fallback model
+  const MODEL_STUDIO = process.env.STUDIO_MODEL || 'gemini-2.5-flash';     // AI Studio fallback model
 
   // Build a generation config shared across SDK calls.
   const genConfig = {
