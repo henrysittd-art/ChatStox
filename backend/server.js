@@ -74,8 +74,48 @@ if (REDIS_URL) {
 }
 
 // ── Cache Helper ─────────────────────────────────────────────────────────────
+const memCache = new Map();
+const MAX_MEM_CACHE_SIZE = 500;
+
+function getMemCache(key) {
+  const item = memCache.get(key);
+  if (item && item.expires > Date.now()) return item.data;
+  if (item) memCache.delete(key); // clear expired entry
+  return null;
+}
+
+function setMemCache(key, data, ttlSeconds) {
+  const now = Date.now();
+  // Prune expired entries to free space first
+  for (const [k, v] of memCache.entries()) {
+    if (v.expires <= now) memCache.delete(k);
+  }
+  
+  // If size is still too large, delete oldest entry (Map maintains insertion order)
+  if (memCache.size >= MAX_MEM_CACHE_SIZE) {
+    const oldestKey = memCache.keys().next().value;
+    if (oldestKey) memCache.delete(oldestKey);
+  }
+  
+  memCache.set(key, { data, expires: now + ttlSeconds * 1000 });
+}
+
 async function withCache(key, ttlSeconds, fetchFn) {
-  if (!redisClient) return fetchFn();
+  if (!redisClient) {
+    const memCached = getMemCache(key);
+    if (memCached) {
+      console.log(`[Mem Cache HIT] Key: ${key}`);
+      return memCached;
+    }
+    const data = await fetchFn();
+    if (data !== null && data !== undefined) {
+      setMemCache(key, data, ttlSeconds);
+      console.log(`[Mem Cache MISS -> SET] Key: ${key} | TTL: ${ttlSeconds}s`);
+    } else {
+      console.log(`[Mem Cache MISS -> SKIP SET] Key: ${key} (falsy data, skipping cache)`);
+    }
+    return data;
+  }
   try {
     const cached = await redisClient.get(key);
     if (cached) {
@@ -88,11 +128,15 @@ async function withCache(key, ttlSeconds, fetchFn) {
 
   const data = await fetchFn();
 
-  try {
-    await redisClient.set(key, JSON.stringify(data), { EX: ttlSeconds });
-    console.log(`[Redis Cache MISS -> SET] Key: ${key} | TTL: ${ttlSeconds}s`);
-  } catch (err) {
-    console.warn(`[Redis Cache Write Error] Key: ${key}:`, err.message);
+  if (data !== null && data !== undefined) {
+    try {
+      await redisClient.set(key, JSON.stringify(data), { EX: ttlSeconds });
+      console.log(`[Redis Cache MISS -> SET] Key: ${key} | TTL: ${ttlSeconds}s`);
+    } catch (err) {
+      console.warn(`[Redis Cache Write Error] Key: ${key}:`, err.message);
+    }
+  } else {
+    console.log(`[Redis Cache MISS -> SKIP SET] Key: ${key} (falsy data, skipping cache)`);
   }
 
   return data;
@@ -487,20 +531,22 @@ const CHAT_STOP_WORDS = new Set([
   'YTD', 'OTC', 'SEC', 'FED', 'GDP', 'CPI', 'PMI', 'RSI',
   'ATH', 'ATL', 'EST', 'EDT', 'ET', 'FX', 'IV', 'OI',
   // Spanish articles / prepositions / pronouns (single and short words)
-  'EL', 'LA', 'AL', 'UN', 'SE', 'ME', 'TE', 'LE', 'NO', 'SIN',
+  'EL', 'LA', 'AL', 'UN', 'SE', 'ME', 'TE', 'LE', 'NO', 'SIN', 'DE', 'EN', 'Y', 'O', 'MI', 'TU', 'SU', 'NOS', 'SUS', 'MIS', 'TUS',
   // Spanish function words / verbs (1-5 chars after accent-stripping)
-  'QUE', 'CON', 'POR', 'DEL', 'LOS', 'LAS', 'UNA', 'UNO',
-  'MAS', 'MUY', 'HOY', 'YA', 'SI', 'SU', 'SON', 'SER', 'HAY',
-  'ESO', 'ESA', 'ESE', 'ESOS', 'ESAS', 'ESTA', 'ESTE', 'ESTO',
-  'PERO', 'PARA', 'COMO', 'SOBRE', 'TIENE', 'TENER', 'ESTAR', 'PODER',
-  'QUIERO', 'MEJOR', 'CREO', 'PUEDE', 'TODOS', 'PORQUE',
-  'CADA', 'POCO', 'BIEN', 'SABE', 'HACE', 'TOMA', 'PASA',
-  'DESDE', 'HACIA', 'ENTRE', 'ANTES', 'NUNCA', 'IGUAL',
-  'TANTO', 'HOLA', 'GRACIAS', 'CLARO', 'BUENO',
+  'QUE', 'CON', 'POR', 'DEL', 'LOS', 'LAS', 'UNA', 'UNO', 'UNOS', 'UNAS',
+  'MAS', 'MUY', 'HOY', 'YA', 'SI', 'SU', 'SON', 'SER', 'HAY', 'FUE', 'ERA',
+  'ESO', 'ESA', 'ESE', 'ESOS', 'ESAS', 'ESTA', 'ESTE', 'ESTO', 'ESTAS', 'ESTOS',
+  'PERO', 'PARA', 'COMO', 'SOBRE', 'TIENE', 'TENER', 'TENGO', 'ESTAR', 'ESTOY', 'PODER',
+  'QUIERO', 'MEJOR', 'PEOR', 'CREO', 'PUEDE', 'PUEDO', 'TODOS', 'PORQUE',
+  'CADA', 'POCO', 'BIEN', 'SABE', 'SABER', 'HACE', 'TOMA', 'PASA', 'VER',
+  'DESDE', 'HACIA', 'ENTRE', 'ANTES', 'NUNCA', 'IGUAL', 'SINO', 'HASTA', 'AUN', 'AUNQUE',
+  'TANTO', 'HOLA', 'GRACIAS', 'CLARO', 'BUENO', 'DIME', 'DAME', 'AYER', 'SOLO', 'TIPO', 'VEZ',
   // Spanish words that become false-positive tickers after uppercasing user input
-  'ALGO', 'PASO', 'CAYO', 'TODAS', 'ESTAS', 'BAJA', 'SUBE',
+  'ALGO', 'PASO', 'CAYO', 'TODAS', 'ESTAS', 'BAJA', 'SUBE', 'MAL',
   'TODO', 'ELLA', 'PUES', 'HIZO', 'DIJO', 'TUVO', 'ELLAS',
   'NADA', 'SIDO', 'ELLO', 'USAN', 'PIDE', 'GANA', 'MALA', 'MALO',
+  'OTRO', 'OTRA', 'OTROS', 'OTRAS', 'AQUEL', 'VENDER', 'INVERTIR', 'COMPRA', 'COMPRAR',
+  'OPINA', 'OPINAS', 'RECOMIENDA', 'RECOMIENDAS', 'SUGIERE', 'SUGIERO', 'AHORA', 'MISMO', 'MISMA',
   // Spanish preterite verb forms (past tense conjugations)
   'CERRO', 'MOVIO', 'ABRIO', 'SUBIO', 'BAJO',  'ALZO',  'LLEGO',
   'SALIO', 'ENTRO', 'GANO',  'PUSO',  'PUDO',  'VINO',  'SUPO',
@@ -567,10 +613,21 @@ async function fetchTickerSnapshot(ticker) {
     const enc = encodeURIComponent(ticker);
     const safeFetch = (url) => {
       const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), 4000);
+      const timeoutId = setTimeout(() => ctrl.abort(), 4000);
       return fetch(url, { signal: ctrl.signal })
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null);
+        .then(r => {
+          clearTimeout(timeoutId);
+          if (!r.ok) {
+            console.warn(`[Polygon safeFetch Fail] URL: ${url.replace(POLYGON_KEY, '***')} | Status: ${r.status} ${r.statusText}`);
+            return null;
+          }
+          return r.json();
+        })
+        .catch(err => {
+          clearTimeout(timeoutId);
+          console.warn(`[Polygon safeFetch Error] URL: ${url.replace(POLYGON_KEY, '***')} | Error: ${err.message}`);
+          return null;
+        });
     };
     const [snapRes, refRes, splitsRes, divsRes, newsRes, v3Res] = await Promise.allSettled([
       safeFetch(`${POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers/${enc}?apiKey=${POLYGON_KEY}`),
@@ -842,6 +899,7 @@ app.post('/api/chat', async (req, res) => {
   // In general chat (no currentTicker) always include SPY and QQQ as market proxies so the AI knows
   // whether the market is up/down/closed and can answer market-wide questions accurately.
   const msgTickers = extractTickersFromMessage(lastMsg.content);
+  console.log(`[/api/chat] User Message: "${lastMsg.content}" | Extracted Tickers: ${JSON.stringify(msgTickers)}`);
   // If user explicitly mentions a ticker different from the loaded stock, enrich it first
   const msgPrimary = msgTickers.length > 0 ? msgTickers[0] : null;
   const mentionedTickers = currentTicker
@@ -849,10 +907,13 @@ app.post('/api/chat', async (req, res) => {
         ? [msgPrimary, currentTicker, ...msgTickers.slice(1).filter(t => t !== currentTicker)].slice(0, 3)
         : [currentTicker, ...msgTickers.filter(t => t !== currentTicker)].slice(0, 3))
     : ['SPY', 'QQQ', ...msgTickers.filter(t => t !== 'SPY' && t !== 'QQQ')].slice(0, 4);
+  console.log(`[/api/chat] Consolidated Tickers for Enrichment: ${JSON.stringify(mentionedTickers)}`);
   let realtimeBlock = '';
   let noDataBlock = '';
   if (mentionedTickers.length > 0) {
-    const results = await Promise.allSettled(mentionedTickers.map(fetchTickerSnapshot));
+    const results = await Promise.allSettled(
+      mentionedTickers.map(t => withCache(`enriched_snapshot:${t.toUpperCase()}`, 15, () => fetchTickerSnapshot(t)))
+    );
     const lines = [];
     const noDataLines = [];
     for (let i = 0; i < results.length; i++) {
@@ -915,7 +976,7 @@ app.post('/api/chat', async (req, res) => {
         }
         lines.push(block.join('\n'));
       } else {
-        noDataLines.push(`No hay datos de Polygon para ${ticker} en este momento. Indica al usuario que no puedes confirmar precio o datos en tiempo real para ese ticker específico, y sugiere verificar en su plataforma de trading.`);
+        noDataLines.push(`NOTICE: Live market data feed returned no real-time price snapshot for ${ticker} at this moment. (The stock might be inactive, halted, delisted, or this is a temporary API rate limit fallback).`);
         console.log(`[/api/chat] no-data for ${ticker}`);
       }
     }
