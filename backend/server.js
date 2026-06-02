@@ -14,7 +14,7 @@ const POLYGON_BASE = 'https://api.polygon.io';
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_KEY) console.error('[server] GEMINI_API_KEY env var is not set — /api/chat will return 500');
-const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY, { apiVersion: 'v1' }) : null;
+const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
 
 // ── Redis Client ─────────────────────────────────────────────────────────────
 const { createClient } = require('redis');
@@ -894,7 +894,7 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       generationConfig: { maxOutputTokens: Math.max(Number(max_tokens) || 2400, 2400), temperature },
     });
 
@@ -905,7 +905,7 @@ app.post('/api/chat', async (req, res) => {
 
     const callConfig = {
       contents,
-      tools: [{ googleSearch: {} }],
+      tools: [{ googleSearchRetrieval: {} }],
       ...(systemInstruction ? { systemInstruction } : {}),
     };
 

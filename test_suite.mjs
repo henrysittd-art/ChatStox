@@ -4,9 +4,8 @@
  */
 
 import { extractTicker } from './src/utils/tickerExtractor.js';
-import { OPENAI_KEY, OPENAI_MODEL, OPENAI_BASE_URL } from './src/config/api.js';
 
-const BACKEND = 'http://localhost:3001';
+const BACKEND = process.env.BACKEND_URL || 'http://localhost:8080';
 let passed = 0;
 let failed = 0;
 const failures = [];
@@ -33,20 +32,20 @@ async function backendGet(path) {
 }
 
 async function openaiChat(systemContent, userContent) {
-  const res = await fetch(OPENAI_BASE_URL, {
+  const res = await fetch(`${BACKEND}/api/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
-      temperature: 0.2,
-      max_tokens: 600,
       messages: [
         { role: 'system', content: systemContent },
         { role: 'user',   content: userContent  },
       ],
+      temperature: 0.2,
+      max_tokens: 600,
+      stream: false,
     }),
   });
-  if (!res.ok) { const t = await res.text(); throw new Error(`OpenAI ${res.status}: ${t.slice(0, 200)}`); }
+  if (!res.ok) { const t = await res.text(); throw new Error(`Backend ${res.status}: ${t.slice(0, 200)}`); }
   const json = await res.json();
   return json.choices?.[0]?.message?.content || '';
 }

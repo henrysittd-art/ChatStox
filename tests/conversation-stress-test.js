@@ -11,7 +11,7 @@
 'use strict';
 
 const BACKEND  = 'https://chatstox-production.up.railway.app';
-const MODEL    = 'gemini-2.5-flash';
+const MODEL    = 'gemini-2.0-flash';
 const WARN_MS  = 9_000;
 const FAIL_MS  = 30_000;
 const TURN_GAP = 600; // ms between turns to avoid rate limiting
