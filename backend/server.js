@@ -1045,8 +1045,8 @@ app.post('/api/chat', async (req, res) => {
     { role: 'user', parts: [{ text: lastMsg.content }] },
   ];
 
-  const MODEL_VERTEX = process.env.VERTEX_MODEL || 'gemini-1.5-flash'; // Vertex AI model (IAM, no quota cap)
-  const MODEL_STUDIO = process.env.STUDIO_MODEL || 'gemini-2.5-pro';     // AI Studio fallback model
+  const MODEL_VERTEX = process.env.VERTEX_MODEL || 'gemini-3.5-flash'; // Vertex AI model (IAM, no quota cap)
+  const MODEL_STUDIO = process.env.STUDIO_MODEL || 'gemini-3.5-flash';     // AI Studio fallback model
 
   // Build a generation config shared across SDK calls.
   const genConfig = {
