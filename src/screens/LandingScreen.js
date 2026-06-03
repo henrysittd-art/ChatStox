@@ -8,6 +8,7 @@ import { LogoIcon } from '../components/ChatstoxLogo';
 import { fetchQuote } from '../services/stockService';
 import { useAuth } from '../context/AuthContext';
 import NavButtons from '../components/NavButtons';
+import { useLanguage } from '../context/LanguageContext';
 
 // ── Grid icon (2×2 squares) ───────────────────────────────────────────────────
 
@@ -57,14 +58,14 @@ const cardStyles = StyleSheet.create({
 // ── Chips ─────────────────────────────────────────────────────────────────────
 
 const CHIPS = [
-  "What stocks have momentum right now?",
-  "What's the market sentiment today?",
-  "Any short squeeze plays?",
-  "What's the VIX saying?",
-  "Best risk/reward setups today?",
-  "Any unusual volume activity?",
-  "What to watch at market open?",
-  "Give me a market overview",
+  { key: 'chipMomentum' },
+  { key: 'chipSentiment' },
+  { key: 'chipSqueeze' },
+  { key: 'chipVix' },
+  { key: 'chipRiskReward' },
+  { key: 'chipUnusualVolume' },
+  { key: 'chipMarketOpen' },
+  { key: 'chipOverview' },
 ];
 
 // ── Hamburger icon ────────────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ function HamburgerIcon() {
 // ── LandingScreen ─────────────────────────────────────────────────────────────
 
 export default function LandingScreen({ navigation }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
   const { width } = useWindowDimensions();
   const { user } = useAuth();
@@ -114,8 +116,8 @@ export default function LandingScreen({ navigation }) {
     navigation.navigate('GeneralChat', { question: raw });
   };
 
-  const handleChip = (question) => {
-    navigation.navigate('GeneralChat', { question });
+  const handleChip = (key) => {
+    navigation.navigate('GeneralChat', { question: t(key) });
   };
 
   return (
@@ -149,7 +151,7 @@ export default function LandingScreen({ navigation }) {
                 </Text>
               </View>
             ) : (
-              <Text style={styles.signInText}>Sign In</Text>
+              <Text style={styles.signInText}>{t('landingSignIn')}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -165,11 +167,11 @@ export default function LandingScreen({ navigation }) {
         {/* Hero */}
         <View style={styles.hero}>
           <Text style={[styles.heroTitle, isWide && styles.heroTitleWide]}>
-            What's on your mind{'\n'}
-            <Text style={styles.heroGold}>today?</Text>
+            {t('landingHeroTitle1')}{'\n'}
+            <Text style={styles.heroGold}>{t('landingHeroTitle2')}</Text>
           </Text>
           <Text style={styles.heroSub}>
-            AI-powered stock market intelligence. Ask anything.
+            {t('landingHeroSub')}
           </Text>
         </View>
 
@@ -180,7 +182,7 @@ export default function LandingScreen({ navigation }) {
               style={styles.searchInput}
               value={query}
               onChangeText={setQuery}
-              placeholder="Ask about the market or search a ticker..."
+              placeholder={t('landingPlaceholder')}
               placeholderTextColor="#94a3b8"
               onSubmitEditing={handleSearch}
               returnKeyType="search"
@@ -200,14 +202,14 @@ export default function LandingScreen({ navigation }) {
 
         {/* Quick chips — wrapping rows, centered */}
         <View style={[styles.chipsWrap, isWide && styles.chipsWrapWide]}>
-          {CHIPS.map((q) => (
+          {CHIPS.map((chip) => (
             <TouchableOpacity
-              key={q}
+              key={chip.key}
               style={styles.chip}
-              onPress={() => handleChip(q)}
+              onPress={() => handleChip(chip.key)}
               activeOpacity={0.7}
             >
-              <Text style={styles.chipText}>{q}</Text>
+              <Text style={styles.chipText}>{t(chip.key)}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -216,18 +218,18 @@ export default function LandingScreen({ navigation }) {
         <View style={styles.cardsRow}>
           <FeatureCard
             icon="📊"
-            title="Real-Time Data"
-            description="Live prices, volume & market data"
+            title={t('featRealTimeTitle')}
+            description={t('featRealTimeDesc')}
           />
           <FeatureCard
             icon="🤖"
-            title="AI Analysis"
-            description="Powered by advanced AI models"
+            title={t('featAiTitle')}
+            description={t('featAiDesc')}
           />
           <FeatureCard
             icon="⚡"
-            title="Instant Alerts"
-            description="Never miss a market move"
+            title={t('featAlertsTitle')}
+            description={t('featAlertsDesc')}
           />
         </View>
 

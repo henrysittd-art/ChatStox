@@ -19,7 +19,7 @@ function tickerInHistory(ticker, history) {
 // Tickers with known bad data — filtered out of every AI prompt
 const AI_BLACKLIST = new Set(['AGNT']);
 
-function buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings }) {
+function buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings, question }) {
 
   gainers = (gainers || []).filter(s => !AI_BLACKLIST.has((s.ticker || '').toUpperCase()));
   losers  = (losers  || []).filter(s => !AI_BLACKLIST.has((s.ticker || '').toUpperCase()));
@@ -413,7 +413,19 @@ ${allNews.slice(0, 3).map(fmtNewsLine).join('\n')}`;
       : '';
 
   const firstMention = !tickerInHistory(stock?.ticker, history);
-  const msgType = isAutoAnalysis ? 'AUTO_ANALYSIS' : firstMention ? 'FIRST_MENTION' : 'FOLLOWUP';
+  // A casual, short question about a NEW ticker deep into a conversation
+  // (e.g. "y el SPY como va?") should stay concise (FORMAT 4) rather than dump a
+  // full FORMAT 2 emoji table. Only force the full first-mention analysis on the
+  // opening turns or when the user explicitly asks for depth.
+  const priorTurns = Array.isArray(history) ? history.length : 0;
+  const qText = (question || '').trim();
+  const wantsDepth = /análisis completo|analisis completo|full analysis|completo|comprehensive|setup|deep dive|a fondo|detallado/i.test(qText);
+  const casualFollowUp = !isAutoAnalysis && firstMention && priorTurns >= 4 && qText.length > 0 && qText.length <= 60 && !wantsDepth;
+  const msgType = isAutoAnalysis
+    ? 'AUTO_ANALYSIS'
+    : casualFollowUp ? 'FOLLOWUP'
+    : firstMention ? 'FIRST_MENTION'
+    : 'FOLLOWUP';
 
   return `DATE: ${today}
 MESSAGE_TYPE: ${msgType}
@@ -538,11 +550,11 @@ export async function testAIConnection() {
 
 // ── callAI ────────────────────────────────────────────────────────────────────
 
-export async function callAI({ stock, question, history = [], profile, isGeneral, isAutoAnalysis, details, news, gainers, losers, volume, extendedData, marketIndices, earnings, onChunk, signal }) {
+export async function callAI({ stock, question, history = [], profile, language, isGeneral, isAutoAnalysis, details, news, gainers, losers, volume, extendedData, marketIndices, earnings, onChunk, signal }) {
   // Data blocks only — rules/personality/format live in backend SYSTEM_RULES
-  const dataBlocks = buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings });
+  const dataBlocks = buildSystemPrompt({ stock, isGeneral, isAutoAnalysis, history, details, news, gainers, losers, volume, extendedData, marketIndices, earnings, question });
 
-  const lang = profile?.language || 'en';
+  const lang = language || profile?.language || 'en';
   const profileContext = profile
     ? `USER: ${profile.traderType||'trader'} | sectors: ${Array.isArray(profile.sectors) ? profile.sectors.join(',') : profile.sectors||'all'} | risk: ${profile.riskTolerance||'medium'} | pennies: ${profile.likesPennyStocks?'yes':'no'} | lang: ${lang}`
     : '';

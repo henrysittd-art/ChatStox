@@ -338,6 +338,7 @@ export default function GeneralChatScreen({ navigation, route }) {
         question: questionForAI,
         history: [userMsg],
         profile: profileRef.current,
+        language: lang,
         volume: volumeRef.current,
         signal: controller.signal,
         onChunk: (text) => {
@@ -476,6 +477,7 @@ export default function GeneralChatScreen({ navigation, route }) {
         question: questionForAI,
         history: convoHistory.slice(-10),
         profile: profileRef.current,
+        language: lang,
         volume: volumeRef.current,
         signal: controller.signal,
         onChunk: (text) => {

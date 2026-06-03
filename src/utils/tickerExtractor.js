@@ -185,7 +185,7 @@ const KNOWN_TICKERS = new Set([
 // Mapping of common company/product names → ticker symbol
 const COMPANY_MAP = {
   // Big tech
-  apple: 'AAPL', microsoft: 'MSFT', google: 'GOOGL', alphabet: 'GOOGL',
+  apple: 'AAPL', appl: 'AAPL', aple: 'AAPL', microsoft: 'MSFT', google: 'GOOGL', alphabet: 'GOOGL',
   amazon: 'AMZN', meta: 'META', facebook: 'META', instagram: 'META',
   whatsapp: 'META', tesla: 'TSLA', nvidia: 'NVDA', nvdia: 'NVDA',
   netflix: 'NFLX', amd: 'AMD', intel: 'INTC', qualcomm: 'QCOM',

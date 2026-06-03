@@ -572,8 +572,16 @@ function extractTickersFromMessage(text) {
   // positives like I, A, Y (Spanish "and") being treated as tickers.
   const re = /(?:^|[^A-Z])\$?([A-Z]{1,5})(?=[^A-Z]|$)/g;
   let m;
+  const typoMap = {
+    'APPL': 'AAPL',
+    'APLE': 'AAPL',
+    'NVDIA': 'NVDA',
+  };
   while ((m = re.exec(upper)) !== null) {
-    const t = m[1];
+    let t = m[1];
+    if (typoMap[t]) {
+      t = typoMap[t];
+    }
     const hasDollar = m[0].includes('$');
     const minLen = hasDollar ? 1 : 2; // $C is valid; bare C is too ambiguous
     if (t.length >= minLen && !CHAT_STOP_WORDS.has(t) && !tickers.includes(t)) {
@@ -616,7 +624,7 @@ async function fetchTickerSnapshot(ticker) {
     const enc = encodeURIComponent(ticker);
     const safeFetch = (url) => {
       const ctrl = new AbortController();
-      const timeoutId = setTimeout(() => ctrl.abort(), 4000);
+      const timeoutId = setTimeout(() => ctrl.abort(), 6000);
       return fetch(url, { signal: ctrl.signal })
         .then(r => {
           clearTimeout(timeoutId);
@@ -686,11 +694,76 @@ async function fetchTickerSnapshot(ticker) {
   }
 }
 
+// Resilient wrapper around fetchTickerSnapshot. Adds three protections over a
+// bare 15s positive cache:
+//   1. Positive cache (15s) — near-real-time freshness, unchanged.
+//   2. Negative cache (5s) — when Polygon returns null (404/429/timeout) we
+//      remember the failure briefly so repeated questions in the same session
+//      don't hammer Polygon and don't each pay the full 6s timeout.
+//   3. Stale fallback (5min) — the last successful snapshot is kept and served
+//      (flagged stale) whenever a live fetch fails, so the user gets a real
+//      price instead of a "no live data" notice during transient outages.
+// Returns { data, stale, ageMs } where data may be null only if the ticker has
+// never been fetched successfully this server lifetime.
+async function getResilientSnapshot(ticker) {
+  const upper = ticker.toUpperCase();
+  const liveKey = `enriched_snapshot:${upper}`;
+  const goodKey = `lastGoodSnapshot:${upper}`;
+  const negKey  = `negcache_snapshot:${upper}`;
+
+  const cached = getMemCache(liveKey);
+  if (cached) return { data: cached, stale: false, ageMs: 0 };
+
+  // Recent failure: skip Polygon, fall back to last good snapshot if we have one.
+  if (getMemCache(negKey)) {
+    const good = getMemCache(goodKey);
+    if (good) return { data: good.data, stale: true, ageMs: Date.now() - good.fetchedAt };
+    return { data: null, stale: false, ageMs: 0 };
+  }
+
+  const data = await fetchTickerSnapshot(ticker);
+  if (data) {
+    setMemCache(liveKey, data, 15);
+    setMemCache(goodKey, { data, fetchedAt: Date.now() }, 300);
+    return { data, stale: false, ageMs: 0 };
+  }
+
+  // Live fetch failed: negative-cache briefly, then try stale fallback.
+  setMemCache(negKey, true, 5);
+  const good = getMemCache(goodKey);
+  if (good) {
+    console.log(`[/api/chat] serving STALE snapshot for ${upper} (age ${Math.round((Date.now() - good.fetchedAt) / 1000)}s)`);
+    return { data: good.data, stale: true, ageMs: Date.now() - good.fetchedAt };
+  }
+  return { data: null, stale: false, ageMs: 0 };
+}
+
 function fmtVol(v) {
   if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
   if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
   if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
   return String(v);
+}
+
+// Deterministic per-message language detection. Returns 'es' | 'en' | null.
+// The CURRENT user message language must win over the UI profile setting and
+// over the language of any previous assistant turn, so we detect it directly
+// from the message text rather than trusting the request's `language` flag.
+function detectLanguageFromMessage(text) {
+  if (!text || typeof text !== 'string') return null;
+  // Spanish-only accented characters / punctuation are a strong signal.
+  if (/[áéíóúüñ¿¡]/i.test(text)) return 'es';
+  const lower = ` ${text.toLowerCase()} `;
+  const esTokens = [' es ', ' de ', ' la ', ' el ', ' los ', ' las ', ' una ', ' un ', ' que ', ' con ',
+    'qué', 'cómo', 'como', 'como va', 'esta', 'está', 'están', 'cuál', 'cuanto', 'cuánto', 'dime', 'dame', 'quiero', 'hola',
+    'gracias', 'buenas', 'recomiendas', 'comprar', 'vender', 'acción', 'accion', 'mercado',
+    'sube', 'baja', 'vale la pena', 'merece', 'háblame', 'tienes', 'precio'];
+  const enTokens = [' the ', ' is ', ' are ', ' what ', ' how ', ' should ', ' buy ', ' sell ',
+    ' price ', ' tell me ', ' give me ', ' worth ', ' market ', ' stock ', ' going ', ' now '];
+  const esHits = esTokens.filter(t => lower.includes(t)).length;
+  const enHits = enTokens.filter(t => lower.includes(t)).length;
+  if (esHits === 0 && enHits === 0) return null;
+  return esHits >= enHits ? 'es' : 'en';
 }
 
 // ── System rules — owned here so frontend never hits the 36K limit ──────────
@@ -712,11 +785,16 @@ Use EARNINGS DATA block as ground truth. Give: report date + quarterly cadence +
 State quarters elapsed since ${currentYear} when citing 2024 data. Never refuse — always give something useful.
 
 === DATES & SPECIFICITY ===
+=== SPECIFICITY REQUIREMENT ===
 Historical price: "HISTORICAL DATA for [TICKER] on [DATE]:" → use those exact numbers.
 "HISTORICAL NOTE: No data available" → explain why (weekend/holiday/not listed), offer Yahoo Finance.
 Unspecified year → assume ${currentYear}. Never ask for clarification.
 Name specific events with dates and numbers. WHO, WHAT, WHEN. No generic phrases.
-Historical questions (crashes, worst days) → answer from training with event + date + % move. Skip live feed.
+Historical questions (crashes, worst days, triggers like "noticia más polémica", "peor día", "mayor caída", "biggest crash") → answer from training with specific event + date + % move. Skip live feed.
+Examples of historical volatile events:
+✓ SNAP: "En mayo 2022 cayó más del 40% debido a un recorte en sus guías de revenue."
+✓ META: "En febrero 2022 cayó más de 26% por su primera caída en usuarios activos diarios."
+✓ NFLX: "En enero 2022 cayó más del 20% tras reportar pérdidas de suscriptores."
 
 === DECIMAL RULE ===
 Sub-$1: 4 decimals ($0.0742). $1+: 2 decimals ($1.25, $211.50). All prices in every response.
@@ -781,10 +859,16 @@ Use FORMAT 3 only for FORMAT 3 triggers. Use FORMAT 2 only if user says "anális
 
 MESSAGE_TYPE (from data block): AUTO_ANALYSIS or FIRST_MENTION → use FORMAT 2. FOLLOWUP → use FORMAT 4. EXCEPTION: if the user's message explicitly lists multiple numbered questions or asks for a "comprehensive"/"completo" analysis, expand beyond the format template and answer every point fully.
 
+CASUAL TICKER SWITCH RULE: If the user asks a casual, short question about a new ticker (e.g. "y el SPY como va?", "cómo va NVDA?", "how is TSLA doing?") deep in a conversation, do NOT use FORMAT 2 (no full tables/emojis). Use FORMAT 4 (short bullets, max 2 lines per bullet, single price quote) to keep the flow conversational. Only use FORMAT 2 for FIRST_MENTION if the user explicitly requests an "análisis completo" or "full analysis".
+
 LENGTH RULE: NEVER refuse to write a long analysis. Write as many lines as requested. BANNED phrases: "no puedo proporcionar un análisis tan extenso", "no es posible dar un análisis de X líneas", "I cannot provide such a long analysis", "that would be too long", "es demasiado largo", "un análisis tan detallado excede mis capacidades".
 
 === PERSONALITY ===
 Elite trading desk energy. Direct, confident, zero filler, zero apologies. Real opinions backed by specific numbers. Hook question at end of every response. No repeated disclaimers. Never start with "According to my data" or "Según mis datos."
+
+VOLATILE EVENTS RULE:
+When the user asks about crashes, drops, or major changes, you must provide a specific event, approximate date, and approximate % move.
+For example, state "SNAP cayó más del 40% en mayo 2022 tras guías débiles" instead of vague phrases like "volatilidad significativa". Always include actual dates and percentage moves.
 
 ENERGY & TONE — match the market action:
 • Big move / high RVOL / squeeze forming → excited, punchy, use exclamations: "¡Exacto!", "¡Ese es el nivel clave!", "¡Ahí está el squeeze!", "That's the move!", "¡Míralo!", "Let's go!", "¡Eso es momentum puro!"
@@ -890,8 +974,13 @@ app.post('/api/chat', async (req, res) => {
   // Build full system instruction: rules (backend) + lang header + profile + data blocks (frontend)
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const currentYear = new Date().getFullYear();
-  const langName = language === 'es' ? 'Spanish (español)' : 'English';
-  const langHeader = `CRITICAL: Respond in ${langName} only. Every response must be in ${langName}.\n\n`;
+  // The user's CURRENT message language overrides the UI profile flag and any
+  // prior assistant-turn language. Fall back to the request flag only when the
+  // message has no detectable language signal.
+  const detectedLang = detectLanguageFromMessage(lastMsg?.content);
+  const effectiveLang = detectedLang || language || 'en';
+  const langName = effectiveLang === 'es' ? 'Spanish (español)' : 'English';
+  const langHeader = `CRITICAL LANGUAGE RULE: The user's CURRENT message is written in ${langName}. Respond ONLY in ${langName}. Ignore the language of any previous assistant turn or profile setting — match the CURRENT user message language exactly. Zero mixing.\n\n`;
   const profileLine = profileContext ? `\nUSER PROFILE: ${profileContext}\n` : '';
   const dataBlocks = systemMsg?.content || '';
   const gainersHeader = !currentTicker
@@ -899,7 +988,7 @@ app.post('/api/chat', async (req, res) => {
     : '';
   const fullSystemInstruction = langHeader + getSystemRules(today, currentYear) + profileLine + gainersHeader + '\n\n' + dataBlocks;
 
-  console.log(`[/api/chat] Gemini | turns=${nonSystem.length} rules=${getSystemRules(today,currentYear).length}chars data=${dataBlocks.length}chars total=${fullSystemInstruction.length}chars stream=${stream}`);
+  console.log(`[/api/chat] Gemini | turns=${nonSystem.length} rules=${getSystemRules(today,currentYear).length}chars data=${dataBlocks.length}chars total=${fullSystemInstruction.length}chars stream=${stream} lang=${effectiveLang}(detected=${detectedLang||'none'},flag=${language})`);
 
   // Auto-inject real-time Polygon data — always enrich currentTicker first, then any tickers from the message.
   // In general chat (no currentTicker) always include SPY and QQQ as market proxies so the AI knows
@@ -936,19 +1025,25 @@ app.post('/api/chat', async (req, res) => {
   let noDataBlock = '';
   if (mentionedTickers.length > 0) {
     const results = await Promise.allSettled(
-      mentionedTickers.map(t => withCache(`enriched_snapshot:${t.toUpperCase()}`, 15, () => fetchTickerSnapshot(t)))
+      mentionedTickers.map(t => getResilientSnapshot(t))
     );
     const lines = [];
     const noDataLines = [];
     for (let i = 0; i < results.length; i++) {
       const r = results[i];
       const ticker = mentionedTickers[i];
-      if (r.status === 'fulfilled' && r.value) {
-        const { ticker: t, price, changePct, volume, open, high, low, vwap, prevClose, marketStatus, sector, description, employees, listDate, splits, divs, news } = r.value;
+      if (r.status === 'fulfilled' && r.value && r.value.data) {
+        const { stale, ageMs } = r.value;
+        const { ticker: t, price, changePct, volume, open, high, low, vwap, prevClose, marketStatus, sector, description, employees, listDate, splits, divs, news } = r.value.data;
         const sign = changePct >= 0 ? '+' : '';
         const fmt  = (v) => v < 1 ? v.toFixed(4) : v.toFixed(2);
         const block = [];
-        block.push(`REAL-TIME DATA for ${t}:`);
+        // Flag clearly stale snapshots (>60s old) so the model can disclose freshness.
+        if (stale && ageMs > 60000) {
+          block.push(`REAL-TIME DATA for ${t} (CACHED — last live update ${Math.round(ageMs / 1000)}s ago; live feed temporarily unavailable):`);
+        } else {
+          block.push(`REAL-TIME DATA for ${t}:`);
+        }
         if (marketStatus) block.push(`Market status: ${marketStatus}`);
         let priceLine = `Price: $${fmt(price)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`;
         if (sector) priceLine += `, Sector: ${sector}`;
@@ -1000,13 +1095,17 @@ app.post('/api/chat', async (req, res) => {
         }
         lines.push(block.join('\n'));
       } else {
-        noDataLines.push(`NOTICE: Live market data feed returned no real-time price snapshot for ${ticker} at this moment. (The stock might be inactive, halted, delisted, or this is a temporary API rate limit fallback).`);
+        // Only inject a system NOTICE for the primary ticker to avoid confusing the AI
+        // when background proxies (like SPY/QQQ) fail due to rate limits.
+        if (i === 0) {
+          noDataLines.push(`NOTICE: Live market data feed returned no real-time price snapshot for ${ticker} at this moment. (The stock might be inactive, halted, delisted, or this is a temporary API rate limit fallback).`);
+        }
         console.log(`[/api/chat] no-data for ${ticker}`);
       }
     }
     if (lines.length > 0) {
       realtimeBlock = `\n${lines.join('\n\n')}\n`;
-      console.log(`[/api/chat] injected context for: ${mentionedTickers.filter((_, i) => results[i].status === 'fulfilled' && results[i].value).join(', ')}`);
+      console.log(`[/api/chat] injected context for: ${mentionedTickers.filter((_, i) => results[i].status === 'fulfilled' && results[i].value && results[i].value.data).join(', ')}`);
     }
     if (noDataLines.length > 0) {
       noDataBlock = `\nNO-DATA NOTICE:\n${noDataLines.join('\n')}\n`;
@@ -1045,8 +1144,8 @@ app.post('/api/chat', async (req, res) => {
     { role: 'user', parts: [{ text: lastMsg.content }] },
   ];
 
-  const MODEL_VERTEX = process.env.VERTEX_MODEL || 'gemini-3.5-flash'; // Vertex AI model (IAM, no quota cap)
-  const MODEL_STUDIO = process.env.STUDIO_MODEL || 'gemini-3.5-flash';     // AI Studio fallback model
+  const MODEL_VERTEX = process.env.VERTEX_MODEL || 'gemini-2.5-flash'; // Vertex AI model (IAM, no quota cap)
+  const MODEL_STUDIO = process.env.STUDIO_MODEL || 'gemini-2.5-flash';     // AI Studio fallback model
 
   // Build a generation config shared across SDK calls.
   const genConfig = {

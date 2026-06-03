@@ -5,9 +5,9 @@
  */
 
 const fs = require('fs');
-const src = fs.readFileSync('./src/services/aiService.js', 'utf8');
+const src = fs.readFileSync('./backend/server.js', 'utf8');
 
-const identityMatch = src.match(/const IDENTITY = `([\s\S]+?)`;/);
+const identityMatch = src.match(/(=== IDENTITY ===[\s\S]+?It's better to show 5 accurate stocks than 10 with missing data\.)/);
 if (!identityMatch) { console.error('❌ Cannot extract IDENTITY'); process.exit(1); }
 const IDENTITY = identityMatch[1];
 

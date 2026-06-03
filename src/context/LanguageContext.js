@@ -12,6 +12,9 @@ const translations = {
     marketChat: 'Market Chat',
     stockChat: 'Stock Chat',
 
+    // Currency Symbol
+    currencySymbol: '$',
+
     // HomeScreen — tabs
     mostActive: 'Most Active',
     trendingNow: 'Trending Now',
@@ -123,6 +126,31 @@ const translations = {
     whatsDriving: "What's driving this?",
     optionsFlow: 'Options flow',
     tradeSetup: 'Trade Setup 🎯',
+
+    // LandingScreen
+    landingSignIn: 'Sign In',
+    landingHeroTitle1: "What's on your mind",
+    landingHeroTitle2: 'today?',
+    landingHeroSub: 'AI-powered stock market intelligence. Ask anything.',
+    landingPlaceholder: 'Ask about the market or search a ticker...',
+    
+    // LandingScreen Chips
+    chipMomentum: "What stocks have momentum right now?",
+    chipSentiment: "What's the market sentiment today?",
+    chipSqueeze: "Any short squeeze plays?",
+    chipVix: "What's the VIX saying?",
+    chipRiskReward: "Best risk/reward setups today?",
+    chipUnusualVolume: "Any unusual volume activity?",
+    chipMarketOpen: "What to watch at market open?",
+    chipOverview: "Give me a market overview",
+
+    // LandingScreen Feature Cards
+    featRealTimeTitle: "Real-Time Data",
+    featRealTimeDesc: "Live prices, volume & market data",
+    featAiTitle: "AI Analysis",
+    featAiDesc: "Powered by advanced AI models",
+    featAlertsTitle: "Instant Alerts",
+    featAlertsDesc: "Never miss a market move",
   },
 
   es: {
@@ -130,6 +158,9 @@ const translations = {
     pipeline: 'Pipeline',
     marketChat: 'Chat del Mercado',
     stockChat: 'Chat de Acciones',
+
+    // Currency Symbol
+    currencySymbol: '$',
 
     // HomeScreen — tabs
     mostActive: 'Más Activos',
@@ -242,6 +273,31 @@ const translations = {
     whatsDriving: '¿Qué mueve esto?',
     optionsFlow: 'Flujo de opciones',
     tradeSetup: 'Trade Setup 🎯',
+
+    // LandingScreen
+    landingSignIn: 'Iniciar sesión',
+    landingHeroTitle1: '¿Qué tienes en mente',
+    landingHeroTitle2: 'hoy?',
+    landingHeroSub: 'Inteligencia de mercado impulsada por IA. Pregunta lo que quieras.',
+    landingPlaceholder: 'Pregunta sobre el mercado o busca un ticker...',
+    
+    // LandingScreen Chips
+    chipMomentum: "¿Qué acciones tienen impulso en este momento?",
+    chipSentiment: "¿Cuál es el sentimiento del mercado hoy?",
+    chipSqueeze: "¿Alguna jugada de short squeeze?",
+    chipVix: "¿Qué dice el VIX?",
+    chipRiskReward: "¿Cuáles son las mejores configuraciones de riesgo/beneficio hoy?",
+    chipUnusualVolume: "¿Alguna actividad inusual de volumen?",
+    chipMarketOpen: "¿Qué vigilar en la apertura del mercado?",
+    chipOverview: "Dame un resumen del mercado",
+
+    // LandingScreen Feature Cards
+    featRealTimeTitle: "Datos en Tiempo Real",
+    featRealTimeDesc: "Precios en vivo, volumen y datos de mercado",
+    featAiTitle: "Análisis con IA",
+    featAiDesc: "Impulsado por modelos avanzados de IA",
+    featAlertsTitle: "Alertas Instantáneas",
+    featAlertsDesc: "No te pierdas ningún movimiento del mercado",
   },
 };
 

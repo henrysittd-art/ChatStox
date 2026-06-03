@@ -989,6 +989,7 @@ export default function StockChatScreen({ route, navigation }) {
               stock: q, question: pendingQuestion,
               history: withQuestion.filter(m => m.role === 'user' || m.role === 'assistant').slice(-10),
               profile: profileRaw ? JSON.parse(profileRaw) : null,
+              language: lang,
               details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
               onChunk: (text) => {
                 setMessages(prev => prev.map(msg =>
@@ -1059,6 +1060,7 @@ export default function StockChatScreen({ route, navigation }) {
                 question: `Output a SHORT market update in this EXACT format — no other text, no greetings, max 3 lines:\n📊 Update — ${ticker} | $[current price] ([change%]) | Vol: [volume]\n[one sentence: what is notable right now — compare price to open, note volume trend or key level nearby, be specific with real numbers from the data.]`,
                 history: [], marketIndices: indices,
                 profile: profileRaw ? JSON.parse(profileRaw) : null,
+                language: lang,
                 details: d, news: n, extendedData: ext, earnings: earningsData,
               });
             } else {
@@ -1069,6 +1071,7 @@ export default function StockChatScreen({ route, navigation }) {
                 question: `Analyze ${ticker} using the real-time market data provided.`,
                 history: [],
                 profile: profileRaw ? JSON.parse(profileRaw) : null,
+                language: lang,
                 isAutoAnalysis: true,
                 details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
               });
@@ -1115,6 +1118,7 @@ export default function StockChatScreen({ route, navigation }) {
           const aiText = await callAI({
             stock: q, question: pendingQuestion, history: [],
             profile: profileRaw ? JSON.parse(profileRaw) : null,
+            language: lang,
             details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
             onChunk: (text) => {
               setMessages(prev => prev.map(msg =>
@@ -1200,6 +1204,7 @@ export default function StockChatScreen({ route, navigation }) {
           question: `Analyze ${ticker} using the real-time market data provided.`,
           history: [],
           profile: profileRaw ? JSON.parse(profileRaw) : null,
+          language: lang,
           isAutoAnalysis: true,
           details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
         });
@@ -1367,7 +1372,7 @@ export default function StockChatScreen({ route, navigation }) {
 
       const aiText = await callAI({
         stock: stockForCall, question: questionForAI, history: history.slice(-10),
-        profile, details, news, extendedData, marketIndices, earnings,
+        profile, language: lang, details, news, extendedData, marketIndices, earnings,
         onChunk: (text) => {
           setMessages(prev => prev.map(msg =>
             msg.id === streamingId ? { ...msg, content: text } : msg
