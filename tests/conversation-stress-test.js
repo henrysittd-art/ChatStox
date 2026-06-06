@@ -10,8 +10,8 @@
 
 'use strict';
 
-const BACKEND  = 'https://chatstox-backend-dudyphhb2a-uc.a.run.app';
-const MODEL    = 'gemini-2.0-flash';
+const BACKEND  = process.env.BACKEND_URL || 'http://localhost:8080';
+const MODEL    = 'gemini-2.5-flash';
 const WARN_MS  = 9_000;
 const FAIL_MS  = 30_000;
 const TURN_GAP = 600; // ms between turns to avoid rate limiting

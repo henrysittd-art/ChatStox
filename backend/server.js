@@ -560,6 +560,8 @@ const CHAT_STOP_WORDS = new Set([
   'DEJA', 'TRAE', 'FIJO', 'VAMOS', 'VENGA', 'MIRA', 'DALE',
   // Extra Spanish / English false-positive splits or words
   'ALG', 'NDE', 'PONGO', 'LOSS', 'ALGUN', 'ALGUNA', 'ALGUNOS', 'ALGUNAS',
+  // Common Spanish verbs and helper words (1-5 chars) commonly mistaken for tickers
+  'ESTAN', 'ESTEN', 'HAYAN', 'HAYA', 'HABER', 'HACER', 'HACEN', 'DICEN', 'DICE', 'VAYA', 'VAYAN', 'SEAN', 'SEAS', 'DIAS', 'DATO', 'DATOS', 'GUSTA',
 ]);
 
 function extractTickersFromMessage(text) {
@@ -619,6 +621,14 @@ function sectorFromRef(r) {
   return null;
 }
 
+/**
+ * Fetches and enriches live stock snapshot data from Polygon v2 and v3 endpoints.
+ * Prioritizes extended-hours (After-Hours/Pre-Market) prices if available in v3.
+ *
+ * @param {string} ticker - The stock ticker symbol to fetch data for.
+ * @returns {Promise<Object|null>} An enriched snapshot data object, or null if the ticker is invalid or fetch fails.
+ * @throws {Error} Propagates errors from internal fetching operations.
+ */
 async function fetchTickerSnapshot(ticker) {
   try {
     const enc = encodeURIComponent(ticker);
@@ -656,7 +666,8 @@ async function fetchTickerSnapshot(ticker) {
     const news   = (newsRes.status   === 'fulfilled' ? newsRes.value   : null)?.results ?? [];
     const v3res  = (v3Res.status     === 'fulfilled' ? v3Res.value     : null)?.results?.[0] ?? {};
     const marketStatus = v3res.market_status ?? null;
-    const price     = snap.lastTrade?.p ?? snap.day?.c ?? snap.prevDay?.c ?? 0;
+    const v3session = v3res.session || {};
+    const price     = v3session.price ?? snap.lastTrade?.p ?? snap.day?.c ?? snap.prevDay?.c ?? 0;
     const changePct = snap.todaysChangePerc ?? 0;
     const volume    = snap.day?.v ?? 0;
     const open      = snap.day?.o ?? 0;
@@ -688,6 +699,10 @@ async function fetchTickerSnapshot(ticker) {
       splits:       splits.map(s => `${s.split_to}-for-${s.split_from}${s.split_to < s.split_from ? ' reverse split' : ''} on ${s.execution_date}`),
       divs:         divs.map(d => `$${Number(d.cash_amount).toFixed(4)} ex-date ${d.ex_dividend_date}`),
       news:         news.map(n => `[${(n.published_utc || '').slice(0, 10)}] ${n.title}`),
+      ahChange:     v3session.late_trading_change ?? null,
+      ahChangePct:  v3session.late_trading_change_percent ?? null,
+      preChange:    v3session.early_trading_change ?? null,
+      preChangePct: v3session.early_trading_change_percent ?? null,
     };
   } catch {
     return null;
@@ -1034,7 +1049,7 @@ app.post('/api/chat', async (req, res) => {
       const ticker = mentionedTickers[i];
       if (r.status === 'fulfilled' && r.value && r.value.data) {
         const { stale, ageMs } = r.value;
-        const { ticker: t, price, changePct, volume, open, high, low, vwap, prevClose, marketStatus, sector, description, employees, listDate, splits, divs, news } = r.value.data;
+        const { ticker: t, price, changePct, volume, open, high, low, vwap, prevClose, marketStatus, sector, description, employees, listDate, splits, divs, news, ahChange, ahChangePct, preChange, preChangePct } = r.value.data;
         const sign = changePct >= 0 ? '+' : '';
         const fmt  = (v) => v < 1 ? v.toFixed(4) : v.toFixed(2);
         const block = [];
@@ -1048,6 +1063,13 @@ app.post('/api/chat', async (req, res) => {
         let priceLine = `Price: $${fmt(price)}, ${sign}${changePct.toFixed(2)}%, Vol: ${fmtVol(volume)}`;
         if (sector) priceLine += `, Sector: ${sector}`;
         block.push(priceLine);
+
+        // Include extended-hours change details if active
+        if (ahChange !== null && ahChangePct !== null && Math.abs(ahChange) > 0.001) {
+          block.push(`After Hours Price: $${fmt(price)} | Change: ${ahChange >= 0 ? '+' : ''}$${ahChange.toFixed(2)} (${ahChangePct >= 0 ? '+' : ''}${ahChangePct.toFixed(2)}%) vs RTH close`);
+        } else if (preChange !== null && preChangePct !== null && Math.abs(preChange) > 0.001) {
+          block.push(`Pre-Market Price: $${fmt(price)} | Change: ${preChange >= 0 ? '+' : ''}$${preChange.toFixed(2)} (${preChangePct >= 0 ? '+' : ''}${preChangePct.toFixed(2)}%) vs prev close`);
+        }
         // Intraday OHLC
         const ohlcParts = [];
         if (open)      ohlcParts.push(`Open: $${fmt(open)}`);

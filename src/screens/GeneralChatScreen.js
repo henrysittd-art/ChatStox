@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fetchTopVolume } from '../services/stockService';
+import { fetchTopVolume, fetchTopGainers, fetchTopLosers } from '../services/stockService';
 import { callAI, aiErrorMessage } from '../services/aiService';
 import { buildDisclaimerMessage, hasSeenDisclaimer, markDisclaimerSeen } from '../utils/disclaimer';
 import { LogoIcon } from '../components/ChatstoxLogo';
@@ -213,6 +213,8 @@ export default function GeneralChatScreen({ navigation, route }) {
   const { tabs, tabsLoaded, addGeneralTab, closeTab } = useTabs();
 
   const [volume, setVolume] = useState([]);
+  const [gainers, setGainers] = useState([]);
+  const [losers, setLosers] = useState([]);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -228,6 +230,8 @@ export default function GeneralChatScreen({ navigation, route }) {
   const scrollRef = useRef(null);
   // Refs so callbacks always see fresh values without re-creating
   const volumeRef        = useRef([]);
+  const gainersRef       = useRef([]);
+  const losersRef        = useRef([]);
   const profileRef       = useRef(null);
   const currentTabIdRef  = useRef(null);
   const processedQRef    = useRef(null); // prevents double-processing same question
@@ -340,6 +344,8 @@ export default function GeneralChatScreen({ navigation, route }) {
         profile: profileRef.current,
         language: lang,
         volume: volumeRef.current,
+        gainers: gainersRef.current,
+        losers: losersRef.current,
         signal: controller.signal,
         onChunk: (text) => {
           setMessages(prev => prev.map(msg =>
@@ -479,6 +485,8 @@ export default function GeneralChatScreen({ navigation, route }) {
         profile: profileRef.current,
         language: lang,
         volume: volumeRef.current,
+        gainers: gainersRef.current,
+        losers: losersRef.current,
         signal: controller.signal,
         onChunk: (text) => {
           setMessages(prev => prev.map(msg =>
@@ -520,11 +528,15 @@ export default function GeneralChatScreen({ navigation, route }) {
     const init = async () => {
       setLoading(true);
       try {
-        const [v, profileRaw] = await Promise.all([
+        const [v, g, l, profileRaw] = await Promise.all([
           fetchTopVolume(),
+          fetchTopGainers(),
+          fetchTopLosers(),
           AsyncStorage.getItem('userProfile'),
         ]);
         volumeRef.current  = v; setVolume(v);
+        gainersRef.current = g; setGainers(g);
+        losersRef.current  = l; setLosers(l);
         const parsedProfile = profileRaw ? JSON.parse(profileRaw) : null;
         if (parsedProfile) { profileRef.current = parsedProfile; setProfile(parsedProfile); }
 
