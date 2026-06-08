@@ -772,7 +772,7 @@ function detectLanguageFromMessage(text) {
   const esTokens = [' es ', ' de ', ' la ', ' el ', ' los ', ' las ', ' una ', ' un ', ' que ', ' con ',
     'qué', 'cómo', 'como', 'como va', 'esta', 'está', 'están', 'cuál', 'cuanto', 'cuánto', 'dime', 'dame', 'quiero', 'hola',
     'gracias', 'buenas', 'recomiendas', 'comprar', 'vender', 'acción', 'accion', 'mercado',
-    'sube', 'baja', 'vale la pena', 'merece', 'háblame', 'tienes', 'precio'];
+    'sube', 'baja', 'vale la pena', 'merece', 'háblame', 'tienes', 'precio', 'porque', 'hoy', 'subio', 'subió', 'bajo', 'bajó', 'tanto', 'por qué', 'por que'];
   const enTokens = [' the ', ' is ', ' are ', ' what ', ' how ', ' should ', ' buy ', ' sell ',
     ' price ', ' tell me ', ' give me ', ' worth ', ' market ', ' stock ', ' going ', ' now '];
   const esHits = esTokens.filter(t => lower.includes(t)).length;
