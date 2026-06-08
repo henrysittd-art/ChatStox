@@ -80,6 +80,25 @@ function fmtPrice(n) {
 function fmtDelta(n) { return `${Number(n) >= 0 ? '+' : ''}${Number(n).toFixed(2)}`; }
 function fmtPct(n) { return `(${Number(n) >= 0 ? '+' : ''}${Number(n).toFixed(2)}%)`; }
 
+function shouldShowChart(userText, aiText, isAutoAnalysis) {
+  if (isAutoAnalysis) return true;
+  const combined = ((userText || '') + ' ' + (aiText || '')).toLowerCase();
+  return (
+    combined.includes('gráfico') ||
+    combined.includes('grafico') ||
+    combined.includes('chart') ||
+    combined.includes('cuánto está') ||
+    combined.includes('cuanto esta') ||
+    combined.includes('precio') ||
+    combined.includes('cotiza') ||
+    combined.includes('how much is') ||
+    combined.includes('show chart') ||
+    combined.includes('plot') ||
+    combined.includes('ver precio') ||
+    combined.includes('rango')
+  );
+}
+
 // ── PriceHeader ───────────────────────────────────────────────────────────────
 
 function PriceHeader({ stock }) {
@@ -334,6 +353,11 @@ function ChatBubble({ msg }) {
         ) : (
           <>
             <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
+            {msg.showChart && msg.chartTicker && (
+              <View style={{ marginVertical: 10, alignSelf: 'stretch', width: '100%' }}>
+                <PriceChart ticker={msg.chartTicker} previousClose={msg.previousClose} />
+              </View>
+            )}
             {msg.isStreaming && <StreamingCursor />}
           </>
         )}
@@ -998,7 +1022,14 @@ export default function StockChatScreen({ route, navigation }) {
               },
             });
             if (loadingTickerRef.current !== ticker) return;
-            const aiMsg = { role: 'assistant', content: aiText, time: streamTs };
+            const aiMsg = {
+              role: 'assistant',
+              content: aiText,
+              time: streamTs,
+              showChart: shouldShowChart(pendingQuestion, aiText, false),
+              chartTicker: ticker,
+              previousClose: q?.previousClose,
+            };
             const final = [...withQuestion, aiMsg];
             setMessages(final);
             await AsyncStorage.setItem(`chat_${ticker}`, JSON.stringify(
@@ -1055,7 +1086,7 @@ export default function StockChatScreen({ route, navigation }) {
           try {
             if (timing === 'SHORT_UPDATE') {
               console.log(`[MARKET-UPDATE] ${ticker} firing short update`);
-              updateMsg.content = await callAI({
+              const content = await callAI({
                 stock: stockForUpdate,
                 question: `Output a SHORT market update in this EXACT format — no other text, no greetings, max 3 lines:\n📊 Update — ${ticker} | $[current price] ([change%]) | Vol: [volume]\n[one sentence: what is notable right now — compare price to open, note volume trend or key level nearby, be specific with real numbers from the data.]`,
                 history: [], marketIndices: indices,
@@ -1063,10 +1094,14 @@ export default function StockChatScreen({ route, navigation }) {
                 language: lang,
                 details: d, news: n, extendedData: ext, earnings: earningsData,
               });
+              updateMsg.content = content;
+              updateMsg.showChart = shouldShowChart('', content, false);
+              updateMsg.chartTicker = ticker;
+              updateMsg.previousClose = stockForUpdate?.previousClose;
             } else {
               // FULL_ANALYSIS — next day or no prior timestamp
               console.log(`[AUTO-ANALYSIS] ${ticker} firing next-day FORMAT 2`);
-              updateMsg.content = await callAI({
+              const content = await callAI({
                 stock: stockForUpdate,
                 question: `Analyze ${ticker} using the real-time market data provided.`,
                 history: [],
@@ -1075,6 +1110,10 @@ export default function StockChatScreen({ route, navigation }) {
                 isAutoAnalysis: true,
                 details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
               });
+              updateMsg.content = content;
+              updateMsg.showChart = true;
+              updateMsg.chartTicker = ticker;
+              updateMsg.previousClose = stockForUpdate?.previousClose;
             }
           } catch {
             updateMsg.content = timing === 'SHORT_UPDATE'
@@ -1127,7 +1166,14 @@ export default function StockChatScreen({ route, navigation }) {
             },
           });
           if (loadingTickerRef.current !== ticker) return;
-          const aiMsg = { role: 'assistant', content: aiText, time: streamTs };
+          const aiMsg = {
+            role: 'assistant',
+            content: aiText,
+            time: streamTs,
+            showChart: shouldShowChart(pendingQuestion, aiText, false),
+            chartTicker: ticker,
+            previousClose: q?.previousClose,
+          };
           const initial = [buildDisclaimerMessage(), userMsg, aiMsg];
           setMessages(initial);
           await AsyncStorage.setItem(`chat_${ticker}`, JSON.stringify(initial));
@@ -1199,7 +1245,7 @@ export default function StockChatScreen({ route, navigation }) {
       console.log(`[AUTO-ANALYSIS] ${ticker} firing with price=$${Number(stockForAI?.price).toFixed(2)} open=$${Number(stockForAI?.open).toFixed(2)} high=$${Number(stockForAI?.dayHigh).toFixed(2)} low=$${Number(stockForAI?.dayLow).toFixed(2)} vwap=$${Number(stockForAI?.vwap).toFixed(2)}`);
 
       try {
-        autoMsg.content = await callAI({
+        const content = await callAI({
           stock: stockForAI,
           question: `Analyze ${ticker} using the real-time market data provided.`,
           history: [],
@@ -1208,6 +1254,10 @@ export default function StockChatScreen({ route, navigation }) {
           isAutoAnalysis: true,
           details: d, news: n, extendedData: ext, marketIndices: indices, earnings: earningsData,
         });
+        autoMsg.content = content;
+        autoMsg.showChart = true;
+        autoMsg.chartTicker = ticker;
+        autoMsg.previousClose = stockForAI?.previousClose;
       } catch {
         autoMsg.content = `I'm ready to analyze ${ticker}. Ask me anything about this stock.`;
       }
@@ -1380,7 +1430,14 @@ export default function StockChatScreen({ route, navigation }) {
         },
       });
 
-      const aiMsg = { role: 'assistant', content: aiText, time: streamTs };
+      const aiMsg = {
+        role: 'assistant',
+        content: aiText,
+        time: streamTs,
+        showChart: shouldShowChart(content, aiText, false),
+        chartTicker: currentTicker,
+        previousClose: stockForCall?.previousClose,
+      };
       const final = [...updated, aiMsg];
       setMessages(final);
       const finalToSave = final.filter(m => m.role !== 'session_divider');

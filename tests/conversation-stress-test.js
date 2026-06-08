@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+amos a #!/usr/bin/env node
 /**
  * ChatStox Multi-Turn Conversation Stress Test
  * Simulates real trader conversations (5-10 turns each) against Railway backend.

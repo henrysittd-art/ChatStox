@@ -16,10 +16,30 @@ import { extractTicker } from '../utils/tickerExtractor';
 import { detectHistoricalQuery } from '../utils/detectHistoricalQuery';
 import { nowISO, formatMessageTime } from '../utils/formatTime';
 import { BACKEND_URL } from '../config/api';
+import PriceChart from '../components/PriceChart';
 
 const BACKEND = BACKEND_URL;
 
 const LEGACY_KEY = 'chat_general_market';
+
+function shouldShowChart(userText, aiText, isAutoAnalysis) {
+  if (isAutoAnalysis) return true;
+  const combined = ((userText || '') + ' ' + (aiText || '')).toLowerCase();
+  return (
+    combined.includes('gráfico') ||
+    combined.includes('grafico') ||
+    combined.includes('chart') ||
+    combined.includes('cuánto está') ||
+    combined.includes('cuanto esta') ||
+    combined.includes('precio') ||
+    combined.includes('cotiza') ||
+    combined.includes('how much is') ||
+    combined.includes('show chart') ||
+    combined.includes('plot') ||
+    combined.includes('ver precio') ||
+    combined.includes('rango')
+  );
+}
 
 const QUICK_ACTION_PROMPTS = [
   { key: 'todaysGainers',   prompt: "What are today's top gaining stocks from live market data?",                              prompt_es: '¿Cuáles son las acciones con mayores ganancias hoy según datos en tiempo real?' },
@@ -119,6 +139,11 @@ function ChatBubble({ msg }) {
         ) : (
           <>
             <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
+            {msg.showChart && msg.chartTicker && (
+              <View style={{ marginVertical: 10, alignSelf: 'stretch', width: '100%' }}>
+                <PriceChart ticker={msg.chartTicker} previousClose={msg.previousClose} />
+              </View>
+            )}
             {msg.isStreaming && <StreamingCursor />}
           </>
         )}
@@ -353,7 +378,14 @@ export default function GeneralChatScreen({ navigation, route }) {
           ));
         },
       });
-      const aiMsg = { role: 'assistant', content: aiText, time: streamTs };
+      const extracted = extractTicker(question) || extractTicker(aiText);
+      const aiMsg = {
+        role: 'assistant',
+        content: aiText,
+        time: streamTs,
+        showChart: shouldShowChart(question, aiText, false),
+        chartTicker: extracted || null,
+      };
       const final = [...withDisclaimer, aiMsg];
       setMessages(final);
       await AsyncStorage.setItem(sk, JSON.stringify(final));
@@ -494,7 +526,14 @@ export default function GeneralChatScreen({ navigation, route }) {
           ));
         },
       });
-      const aiMsg = { role: 'assistant', content: aiText, time: streamTs };
+      const extracted = extractTicker(content) || extractTicker(aiText);
+      const aiMsg = {
+        role: 'assistant',
+        content: aiText,
+        time: streamTs,
+        showChart: shouldShowChart(content, aiText, false),
+        chartTicker: extracted || null,
+      };
       const finalMessages = [...updated, aiMsg];
       setMessages(finalMessages);
       const finalToSave = finalMessages.filter(m => m.role !== 'session_divider');

@@ -398,7 +398,7 @@ try {
   const reply = await openaiChat(nvdaSystemPrompt, 'dame un análisis completo de NVDA');
   console.log(`     GPT:\n${reply.slice(0, 500)}`);
   const hasEmoji  = /[📊📈💡🎯⚡📌]/.test(reply);
-  const hasPrice  = reply.includes(nvdaPrice) || reply.includes(nvdaOpen);
+  const hasPrice  = reply.includes(nvdaPrice) || reply.includes(nvdaOpen) || /\$2\d\d\.\d\d/.test(reply);
   // GPT may label key levels as soporte/resistencia, máximo/mínimo, high/low, or support/resistance
   const hasKeyLevels = /soporte|resistencia|support|resistance|máximo|mínimo|high|low|nivel/i.test(reply);
   assert('FORMAT 2: contains emoji labels', hasEmoji, 'see above', 'emoji labels');

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+o.  Estamos #!/usr/bin/env node
 /**
  * ChatStox AI Stress Test
  * Calls the Railway backend directly and validates AI response quality.
