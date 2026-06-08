@@ -383,7 +383,7 @@ export default function GeneralChatScreen({ navigation, route }) {
         role: 'assistant',
         content: aiText,
         time: streamTs,
-        showChart: shouldShowChart(question, aiText, false),
+        showChart: extracted ? true : shouldShowChart(question, aiText, false),
         chartTicker: extracted || null,
       };
       const final = [...withDisclaimer, aiMsg];

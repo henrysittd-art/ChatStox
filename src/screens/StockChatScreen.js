@@ -1026,7 +1026,7 @@ export default function StockChatScreen({ route, navigation }) {
               role: 'assistant',
               content: aiText,
               time: streamTs,
-              showChart: shouldShowChart(pendingQuestion, aiText, false),
+              showChart: true,
               chartTicker: ticker,
               previousClose: q?.previousClose,
             };
@@ -1170,7 +1170,7 @@ export default function StockChatScreen({ route, navigation }) {
             role: 'assistant',
             content: aiText,
             time: streamTs,
-            showChart: shouldShowChart(pendingQuestion, aiText, false),
+            showChart: true,
             chartTicker: ticker,
             previousClose: q?.previousClose,
           };
