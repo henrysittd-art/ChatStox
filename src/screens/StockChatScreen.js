@@ -1776,7 +1776,7 @@ const styles = StyleSheet.create({
   loadingText: { color: '#64748b', fontSize: 14 },
 
   // Messages
-  messages: { flex: 1, backgroundColor: '#f7f8fa' },
+  messages: { flex: 1, backgroundColor: '#f7f8fa', width: '100%', maxWidth: 480, alignSelf: 'center' },
   messagesContent: { padding: 12, paddingBottom: 6, gap: 8 },
 
   // Disclaimer

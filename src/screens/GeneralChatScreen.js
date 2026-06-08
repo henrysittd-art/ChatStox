@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
   liveBadge:   { color: '#22c55e', fontSize: 11, fontWeight: '800', letterSpacing: 0.8, flexShrink: 0 },
 
   // ── Messages ──
-  messages:        { flex: 1, backgroundColor: '#f7f8fa' },
+  messages:        { flex: 1, backgroundColor: '#f7f8fa', width: '100%', maxWidth: 480, alignSelf: 'center' },
   messagesContent: { padding: 16, paddingBottom: 8, gap: 12 },
 
   // ── Disclaimer ──
