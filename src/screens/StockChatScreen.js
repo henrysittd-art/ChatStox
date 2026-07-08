@@ -331,14 +331,14 @@ function TypingLogo() {
 // ── ChatBubble ────────────────────────────────────────────────────────────────
 
 const aiMarkdownStyles = {
-  body: { color: '#1e293b', fontSize: 13, lineHeight: 18 },
-  strong: { fontWeight: '800', color: '#0a1628' },
+  body: { fontFamily: 'Inter', color: '#111111', fontSize: 16, lineHeight: 22, fontWeight: '400' },
+  strong: { fontFamily: 'Inter', fontWeight: '600', color: '#111111' },
   bullet_list: { marginVertical: 4 },
   bullet_list_icon: { color: '#f5a623', marginTop: 6 },
   list_item: { flexDirection: 'row', marginBottom: 2 },
   paragraph: { marginBottom: 8, marginTop: 0 },
-  heading2: { fontSize: 15, fontWeight: '800', color: '#0a1628', marginBottom: 4, marginTop: 4 },
-  heading3: { fontSize: 14, fontWeight: '700', color: '#0a1628', marginBottom: 2, marginTop: 4 },
+  heading2: { fontFamily: 'Inter', fontSize: 16, fontWeight: '600', color: '#111111', marginBottom: 4, marginTop: 4 },
+  heading3: { fontFamily: 'Inter', fontSize: 16, fontWeight: '600', color: '#111111', marginBottom: 2, marginTop: 4 },
 };
 
 function ChatBubble({ msg }) {
@@ -347,35 +347,31 @@ function ChatBubble({ msg }) {
   if (!isUser) {
     return (
       <View style={styles.aiMsgWrap}>
-        <Text style={styles.aiLabel}>✨ CHATSTOX AI</Text>
-        {msg.isStreaming && !msg.content ? (
-          <TypingLogo />
-        ) : (
-          <>
-            <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
-            {msg.showChart && msg.chartTicker && (
-              <View style={{ marginVertical: 10, alignSelf: 'stretch', width: '100%' }}>
-                <PriceChart ticker={msg.chartTicker} previousClose={msg.previousClose} />
-              </View>
-            )}
-            {msg.isStreaming && <StreamingCursor />}
-          </>
-        )}
-        <Text style={styles.timestamp}>{formatMessageTime(msg.time)}</Text>
+        <View style={styles.bubbleAI}>
+          {msg.isStreaming && !msg.content ? (
+            <TypingLogo />
+          ) : (
+            <>
+              <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
+              {msg.showChart && msg.chartTicker && (
+                <View style={{ marginVertical: 10, alignSelf: 'stretch', width: '100%' }}>
+                  <PriceChart ticker={msg.chartTicker} previousClose={msg.previousClose} />
+                </View>
+              )}
+              {msg.isStreaming && <StreamingCursor />}
+            </>
+          )}
+        </View>
+        <Text style={[styles.timestamp, { textAlign: 'left' }]}>{formatMessageTime(msg.time)}</Text>
       </View>
     );
   }
 
   return (
     <View style={[styles.bubbleWrapUser, styles.bubbleRight]}>
-      <LinearGradient
-        colors={['#1a2a4a', '#0a1628']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.bubbleUser}
-      >
+      <View style={styles.bubbleUser}>
         <Text style={styles.bubbleTextUser}>{msg.displayContent ?? msg.content}</Text>
-      </LinearGradient>
+      </View>
       <Text style={[styles.timestamp, { textAlign: 'right' }]}>{formatMessageTime(msg.time)}</Text>
     </View>
   );
@@ -1460,6 +1456,19 @@ export default function StockChatScreen({ route, navigation }) {
 
   // ── Tab actions ─────────────────────────────────────────────────────────────
 
+  const showChartMessage = () => {
+    if (!currentTicker || thinking || loading) return;
+    const chartMsg = {
+      role: 'assistant',
+      content: '',
+      time: nowISO(),
+      showChart: true,
+      chartTicker: currentTicker,
+      previousClose: stock?.previousClose,
+    };
+    setMessages(prev => [...prev, chartMsg]);
+  };
+
   const handleTabPress = (ticker) => {
     if (ticker !== currentTicker) setCurrentTicker(ticker);
   };
@@ -1563,11 +1572,6 @@ export default function StockChatScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Chart */}
-        {!loading && currentTicker && (
-          <PriceChart ticker={currentTicker} previousClose={stock?.previousClose} />
-        )}
-
         {/* Messages */}
         {loading ? (
           <View style={styles.loadingBox}>
@@ -1629,6 +1633,15 @@ export default function StockChatScreen({ route, navigation }) {
             style={styles.quickRow}
             contentContainerStyle={styles.quickContent}
           >
+            {/* Gráfica Action */}
+            <TouchableOpacity
+              style={styles.quickBtn}
+              onPress={showChartMessage}
+              disabled={thinking || !stock}
+            >
+              <Text style={styles.quickBtnText}>Gráfica</Text>
+            </TouchableOpacity>
+
             {/* Trade Setup — premium gold button, always first */}
             <TouchableOpacity
               style={styles.quickBtnTradeSetup}
@@ -1718,9 +1731,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minHeight: 48,
+    paddingHorizontal: 16,
+    height: 72,
     borderBottomWidth: 1,
     borderBottomColor: '#e8e8e8',
     gap: 6,
@@ -1736,7 +1748,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f7f8fa', justifyContent: 'center', alignItems: 'center', flexShrink: 0,
   },
   menuIcon: { fontSize: 13, color: '#0a1628', fontWeight: '700' },
-  headerTicker: { fontSize: 18, fontWeight: '700', color: '#0a1628', letterSpacing: 0 },
+  headerTicker: { fontFamily: 'Inter', fontSize: 18, fontWeight: '600', color: '#0a1628', letterSpacing: 0 },
   headerSub:    { fontSize: 10, color: '#94a3b8', marginTop: 1 },
   headerRisk:   { fontSize: 9, fontWeight: '600', marginTop: 2 },
 
@@ -1776,8 +1788,8 @@ const styles = StyleSheet.create({
   loadingText: { color: '#64748b', fontSize: 14 },
 
   // Messages
-  messages: { flex: 1, backgroundColor: '#f7f8fa', width: '100%', maxWidth: 480, alignSelf: 'center' },
-  messagesContent: { padding: 12, paddingBottom: 6, gap: 8 },
+  messages: { flex: 1, backgroundColor: '#F7F7F8', width: '100%', alignSelf: 'center' },
+  messagesContent: { padding: 16, paddingBottom: 6, gap: 8 },
 
   // Disclaimer
   disclaimerBox: {
@@ -1825,29 +1837,32 @@ const styles = StyleSheet.create({
   momentumAlertText: { fontSize: 12, color: '#7c2d12', lineHeight: 17, fontWeight: '500' },
 
   // Chat bubbles
-  aiMsgWrap:    { width: '100%', paddingVertical: 6, gap: 2 },
-  bubbleWrapUser: { maxWidth: '75%', gap: 2 },
+  aiMsgWrap:    { width: '100%', gap: 2, paddingVertical: 4 },
+  bubbleWrapUser: { maxWidth: '75%', gap: 2, paddingVertical: 4 },
   bubbleRight: { alignSelf: 'flex-end' },
-  aiLabel: {
-    fontSize: 9, color: '#f5a623', fontWeight: '700',
-    letterSpacing: 0.8, marginBottom: 4, textTransform: 'uppercase',
-  },
   bubbleUser: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 4,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    padding: 10,
+    backgroundColor: '#FFD400',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  bubbleTextUser: { color: '#ffffff', fontSize: 13, lineHeight: 18 },
-  timestamp: { fontSize: 9, color: '#94a3b8', marginTop: 2 },
+  bubbleAI: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: 'flex-start',
+    maxWidth: '75%',
+  },
+  bubbleTextUser: { fontFamily: 'Inter', color: '#111111', fontSize: 16, lineHeight: 22, fontWeight: '400' },
+  timestamp: { fontFamily: 'Inter', fontSize: 12, color: '#8E8E93', fontWeight: '400', marginTop: 2, paddingHorizontal: 4 },
   thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8 },
-  thinkingText: { fontSize: 12, color: '#64748b', fontStyle: 'italic' },
+  thinkingText: { fontFamily: 'Inter', fontSize: 12, color: '#8E8E93', fontStyle: 'italic' },
 
   // Session divider
-  sessionDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 8 },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#d1d9e0' },
-  dividerText: { fontSize: 10, color: '#94a3b8', fontWeight: '500', letterSpacing: 0.4 },
+  sessionDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 16 },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#D9D9D9' },
+  dividerText: { fontFamily: 'Inter', fontSize: 13, color: '#8E8E93', fontWeight: '500' },
 
   // Quick action buttons
   quickRow: {
@@ -1897,7 +1912,8 @@ const styles = StyleSheet.create({
   // Input bar
   inputRow: {
     flexDirection: 'row',
-    padding: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     gap: 8,
     backgroundColor: '#fff',
     borderTopWidth: 1,
@@ -1906,21 +1922,21 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: '#f7f8fa',
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: '#0a1628',
-    maxHeight: 100,
+    backgroundColor: '#F7F7F8',
+    height: 56,
+    borderRadius: 28,
+    paddingHorizontal: 16,
+    fontFamily: 'Inter',
+    fontSize: 16,
+    color: '#111111',
   },
   sendBtn: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#f5a623',
+    backgroundColor: '#FFD400',
     justifyContent: 'center', alignItems: 'center',
   },
   sendBtnDisabled: { backgroundColor: '#e2e8f0' },
-  sendBtnText: { color: '#fff', fontSize: 20, fontWeight: '400', lineHeight: 24, marginLeft: 2 },
+  sendBtnText: { color: '#111111', fontSize: 20, fontWeight: '400', lineHeight: 24, marginLeft: 2 },
 
   // Price flash overlay
   priceWrapper: { position: 'relative', flexShrink: 0 },

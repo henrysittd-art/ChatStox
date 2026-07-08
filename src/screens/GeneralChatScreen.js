@@ -115,14 +115,14 @@ function TypingLogo() {
 }
 
 const aiMarkdownStyles = {
-  body: { color: '#1e293b', fontSize: 14, lineHeight: 21 },
-  strong: { fontWeight: '800', color: '#0a1628' },
+  body: { fontFamily: 'Inter', color: '#111111', fontSize: 16, lineHeight: 22, fontWeight: '400' },
+  strong: { fontFamily: 'Inter', fontWeight: '600', color: '#111111' },
   bullet_list: { marginVertical: 4 },
   bullet_list_icon: { color: '#f5a623', marginTop: 6 },
   list_item: { flexDirection: 'row', marginBottom: 2 },
   paragraph: { marginBottom: 8, marginTop: 0 },
-  heading2: { fontSize: 15, fontWeight: '800', color: '#0a1628', marginBottom: 4, marginTop: 4 },
-  heading3: { fontSize: 14, fontWeight: '700', color: '#0a1628', marginBottom: 2, marginTop: 4 },
+  heading2: { fontFamily: 'Inter', fontSize: 16, fontWeight: '600', color: '#111111', marginBottom: 4, marginTop: 4 },
+  heading3: { fontFamily: 'Inter', fontSize: 16, fontWeight: '600', color: '#111111', marginBottom: 2, marginTop: 4 },
 };
 
 // ── ChatBubble ────────────────────────────────────────────────────────────────
@@ -133,21 +133,22 @@ function ChatBubble({ msg }) {
   if (!isUser) {
     return (
       <View style={styles.aiMsgWrap}>
-        <Text style={styles.aiLabel}>CHATSTOX AI</Text>
-        {msg.isStreaming && !msg.content ? (
-          <TypingLogo />
-        ) : (
-          <>
-            <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
-            {msg.showChart && msg.chartTicker && (
-              <View style={{ marginVertical: 10, alignSelf: 'stretch', width: '100%' }}>
-                <PriceChart ticker={msg.chartTicker} previousClose={msg.previousClose} />
-              </View>
-            )}
-            {msg.isStreaming && <StreamingCursor />}
-          </>
-        )}
-        {msg.time ? <Text style={styles.timestamp}>{formatMessageTime(msg.time)}</Text> : null}
+        <View style={styles.bubbleAI}>
+          {msg.isStreaming && !msg.content ? (
+            <TypingLogo />
+          ) : (
+            <>
+              <Markdown style={aiMarkdownStyles}>{msg.content}</Markdown>
+              {msg.showChart && msg.chartTicker && (
+                <View style={{ marginVertical: 10, alignSelf: 'stretch', width: '100%' }}>
+                  <PriceChart ticker={msg.chartTicker} previousClose={msg.previousClose} />
+                </View>
+              )}
+              {msg.isStreaming && <StreamingCursor />}
+            </>
+          )}
+        </View>
+        {msg.time ? <Text style={[styles.timestamp, { textAlign: 'left' }]}>{formatMessageTime(msg.time)}</Text> : null}
       </View>
     );
   }
@@ -157,7 +158,7 @@ function ChatBubble({ msg }) {
       <View style={[styles.bubble, styles.bubbleUser]}>
         <Text style={styles.bubbleTextUser}>{msg.content}</Text>
       </View>
-      {msg.time ? <Text style={styles.timestamp}>{formatMessageTime(msg.time)}</Text> : null}
+      {msg.time ? <Text style={[styles.timestamp, { textAlign: 'right' }]}>{formatMessageTime(msg.time)}</Text> : null}
     </View>
   );
 }
@@ -780,7 +781,7 @@ const styles = StyleSheet.create({
   loadingText:   { color: '#64748b', fontSize: 14 },
 
   // ── Header ──
-  goldBar: { height: 2, backgroundColor: '#f5a623' },
+  goldBar: { height: 2, backgroundColor: '#FFD400' },
   navTopRow: {
     backgroundColor: 'white',
     paddingHorizontal: 16,
@@ -795,7 +796,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#ffffff',
-    paddingHorizontal: 12, height: 52,
+    paddingHorizontal: 16, height: 72,
     borderBottomWidth: 1, borderBottomColor: '#e8e8e8',
     gap: 8,
   },
@@ -807,7 +808,7 @@ const styles = StyleSheet.create({
   liveBadge:   { color: '#22c55e', fontSize: 11, fontWeight: '800', letterSpacing: 0.8, flexShrink: 0 },
 
   // ── Messages ──
-  messages:        { flex: 1, backgroundColor: '#f7f8fa', width: '100%', maxWidth: 480, alignSelf: 'center' },
+  messages:        { flex: 1, backgroundColor: '#F7F7F8', width: '100%', alignSelf: 'center' },
   messagesContent: { padding: 16, paddingBottom: 8, gap: 12 },
 
   // ── Disclaimer ──
@@ -821,26 +822,34 @@ const styles = StyleSheet.create({
   disclaimerText:  { fontSize: 13, color: '#78350f', lineHeight: 19, fontWeight: '500' },
 
   // ── Chat Bubbles ──
-  aiMsgWrap:   { width: '100%', paddingVertical: 6, gap: 2 },
-  bubbleWrap:  { maxWidth: '80%', gap: 2 },
+  aiMsgWrap:   { width: '100%', gap: 2, paddingVertical: 4 },
+  bubbleWrap:  { maxWidth: '75%', gap: 2, paddingVertical: 4 },
   bubbleRight: { alignSelf: 'flex-end' },
   aiLabel: {
     fontSize: 10, color: '#f5a623', fontWeight: '800',
     letterSpacing: 1.5, marginBottom: 4, textTransform: 'uppercase',
   },
-  bubble: { borderRadius: 16, padding: 12 },
+  bubble: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10 },
   bubbleUser: {
-    backgroundColor: '#0a1628', borderBottomRightRadius: 4,
+    backgroundColor: '#FFD400',
   },
-  bubbleTextUser: { color: '#ffffff', fontSize: 14, lineHeight: 20 },
-  timestamp: { fontSize: 9, color: '#94a3b8', marginTop: 2 },
+  bubbleAI: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: 'flex-start',
+    maxWidth: '75%',
+  },
+  bubbleTextUser: { fontFamily: 'Inter', color: '#111111', fontSize: 16, lineHeight: 22, fontWeight: '400' },
+  timestamp: { fontFamily: 'Inter', fontSize: 12, color: '#8E8E93', fontWeight: '400', marginTop: 2, paddingHorizontal: 4 },
 
   // ── Thinking / session divider ──
   thinkingRow:    { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8 },
-  thinkingText:   { fontSize: 12, color: '#64748b', fontStyle: 'italic' },
-  sessionDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 8 },
-  dividerLine:    { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
-  dividerText:    { fontSize: 10, color: '#94a3b8', fontWeight: '600', letterSpacing: 0.5 },
+  thinkingText:   { fontFamily: 'Inter', fontSize: 12, color: '#8E8E93', fontStyle: 'italic' },
+  sessionDivider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 16 },
+  dividerLine:    { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#D9D9D9' },
+  dividerText:    { fontFamily: 'Inter', fontSize: 13, color: '#8E8E93', fontWeight: '500' },
 
   // ── Quick Actions ──
   quickRow:     { maxHeight: 50, backgroundColor: '#ffffff', borderTopWidth: 1, borderTopColor: '#f0f0f0' },
@@ -854,22 +863,27 @@ const styles = StyleSheet.create({
 
   // ── Input Bar ──
   inputRow: {
-    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, gap: 10,
+    flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, gap: 10,
     backgroundColor: '#ffffff', borderTopWidth: 1, borderTopColor: '#e8e8e8',
-    alignItems: 'flex-end',
+    alignItems: 'center',
   },
   input: {
-    flex: 1, backgroundColor: '#f7f8fa', borderRadius: 22,
-    paddingHorizontal: 16, paddingVertical: 10,
-    fontSize: 14, color: '#0a1628', maxHeight: 100,
+    flex: 1,
+    backgroundColor: '#F7F7F8',
+    height: 56,
+    borderRadius: 28,
+    paddingHorizontal: 16,
+    fontFamily: 'Inter',
+    fontSize: 16,
+    color: '#111111',
   },
   sendBtn: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#f5a623',
+    backgroundColor: '#FFD400',
     justifyContent: 'center', alignItems: 'center',
   },
   sendBtnDisabled: { backgroundColor: '#e0e0e0' },
-  sendBtnText: { fontSize: 26, color: '#ffffff', fontWeight: '700', lineHeight: 30, marginTop: -1 },
+  sendBtnText: { color: '#111111', fontSize: 20, fontWeight: '400', lineHeight: 24, marginLeft: 2 },
 
   // ── Stop and Scroll Controls ──
   stopBtn: {

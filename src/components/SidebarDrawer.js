@@ -282,68 +282,6 @@ export default function SidebarDrawer(props) {
 
         <View style={styles.sectionDivider} />
 
-        {/* ── Recent Chats ── */}
-        <Text style={styles.sectionTitle}>RECENT CHATS</Text>
-
-        {chatItems.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>📈</Text>
-            <Text style={styles.emptyText}>No chats yet</Text>
-            <Text style={styles.emptyHint}>Search a ticker to get started.</Text>
-          </View>
-        ) : (
-          <ScrollView showsVerticalScrollIndicator={false} style={styles.chatList}>
-            {visibleChats.map((item) => {
-              const palette = item.type === 'stock'
-                ? tickerPalette(item.ticker)
-                : { bg: '#dbeafe', text: '#1e40af' };
-              const label = item.type === 'stock' ? item.ticker : item.tabName;
-
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.chatRow}
-                  onPress={() => openItem(item)}
-                  onLongPress={() => deleteItem(item)}
-                  delayLongPress={500}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.tickerBadge, { backgroundColor: palette.bg }]}>
-                    <Text style={[styles.tickerBadgeText, { color: palette.text }]}>
-                      {label.slice(0, 4)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.chatMeta}>
-                    <Text style={styles.chatTicker} numberOfLines={1}>{label}</Text>
-                    {item.type === 'stock' && item.name !== item.ticker ? (
-                      <Text style={styles.chatName} numberOfLines={1}>{item.name}</Text>
-                    ) : null}
-                  </View>
-
-                  <View style={styles.chatRight}>
-                    {item.lastTime ? (
-                      <Text style={styles.chatTime}>{formatSidebarTime(item.lastTime)}</Text>
-                    ) : null}
-                    <TouchableOpacity
-                      onPress={() => deleteItem(item)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Text style={styles.deleteBtnText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-
-            {hasMore && (
-              <TouchableOpacity style={styles.viewAllRow} activeOpacity={0.7}>
-                <Text style={styles.viewAllText}>View all {chatItems.length} chats →</Text>
-              </TouchableOpacity>
-            )}
-          </ScrollView>
-        )}
-
         {/* Spacer — pushes profile card to bottom */}
         <View style={{ flex: 1, minHeight: 16 }} />
 
